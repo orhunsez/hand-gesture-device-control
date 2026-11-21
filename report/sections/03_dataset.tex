@@ -1,0 +1,89 @@
+\section{Dataset and Problem Definition}
+
+% Progress Report: 3.1 and 3.2 in full, 3.3 to 3.6 as the PLANNED protocol (one short paragraph each
+% or less). 3.7 and 3.8 are Final Report only.
+
+\subsection{Task Definition}
+% WRITE: the input is a continuous RGB stream from a single ordinary webcam; the output is the
+% recognised gesture (or ``no gesture''). Three tasks: static classification, dynamic
+% classification, temporal segmentation. Name the difficulties that will be evaluated
+% (lighting, background, camera distance, users, intentional versus incidental movement) and the
+% constraints (real time, ordinary webcam, no extra hardware).
+\todo{task definition}
+
+\subsection{Gesture Set}
+% The gesture set below is DECIDED. Commands are not defined yet: the system only recognises the
+% gestures for now. The label names are the ones in dataset_config.py.
+\begin{table}[h]
+\centering
+\begin{tabular}{@{}lll p{6.2cm}@{}}
+\toprule
+Label & Type & Hand & Description \\
+\midrule
+\texttt{fist}        & static  & closed hand & held still \\
+\texttt{open\_palm}  & static  & open hand & fingers extended, held still \\
+\texttt{thumb\_up}   & static  & fist & thumb pointing up, held still \\
+\texttt{thumb\_down} & static  & fist & thumb pointing down, held still \\
+\texttt{point}       & static  & index finger & index finger extended, other fingers closed \\
+\texttt{swipe\_left}  & dynamic & open palm & out-and-back movement; first stroke towards the user's left \\
+\texttt{swipe\_right} & dynamic & open palm & out-and-back movement; first stroke towards the user's right \\
+\texttt{no\_gesture}  & both    & any & negative class: poses and movements that are not one of the gestures \\
+\bottomrule
+\end{tabular}
+\caption{Gesture set. \todo{decide whether to add the commands (target device) before the Final Report}}
+\label{tab:gestures}
+\end{table}
+% WRITE: one sentence per gesture on why it was chosen (visually distinct, easy to perform, not
+% confusable). Explain that the open palm is used both as a static gesture and for swipes, and
+% that the two are told apart by movement (see Section on segmentation).
+
+\subsection{Data Collection Protocol}
+% PLANNED protocol (Progress Report).
+% FACTS from the project, check before use:
+%  - camera 640 x 480, about 20 frames per second while recording;
+%  - only the 21 hand landmarks are stored, not the images; clips are labelled with user,
+%    gesture, background, lighting and distance;
+%  - static clips: 2 seconds, hand held completely still; swipe and no_gesture clips: 3 seconds;
+%  - swipe: wait about half a second after the countdown, make the out-and-back movement once at a
+%    steady speed with a large amplitude (about one hand size or more), then keep the hand still;
+%  - participants give consent; raw video is not kept.
+\todo{protocol}
+
+\subsection{Participants and Recording Conditions}
+% PLANNED (Progress Report). Fill in the real numbers.
+\begin{table}[h]
+\centering
+\begin{tabular}{@{}lll@{}}
+\toprule
+Factor & Levels & Planned \\
+\midrule
+Users & \todo{how many} & \todo{} \\
+Background & plain, cluttered & \todo{} \\
+Lighting & bright, dim & \todo{} \\
+Camera distance & near, far & \todo{} \\
+\bottomrule
+\end{tabular}
+\caption{Recording conditions.}
+\end{table}
+
+\subsection{Dataset Statistics}
+% Numbers come from validate_dataset.py (clips per user, gesture and condition).
+% Progress Report: planned numbers, or the pilot numbers clearly marked as pilot.
+\todo{statistics table}
+
+\subsection{Train, Validation and Test Split}
+% WRITE: the split is by PERSON, never by frame or clip, because frames of one clip are nearly
+% identical and would leak into the test set. Test users are not used while choosing thresholds or
+% models; they are used once, at the end. With few users, leave-one-user-out cross-validation.
+\todo{split}
+
+\iffinal
+\subsection{Preprocessing and Augmentation}
+% WRITE: smoothing, normalisation, stable-frame selection; any augmentation (for example random
+% rotation of the training frames).
+\todo{preprocessing and augmentation}
+
+\subsection{Data Limitations}
+% WRITE: known biases and gaps (number of users, one camera, one environment, ...).
+\todo{limitations}
+\fi

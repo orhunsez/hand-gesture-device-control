@@ -1,0 +1,59 @@
+﻿# Static classifier on the pilot data (train_static.py), run on 2026-11-21
+
+PROVISIONAL and NOT a result for the report: user u99 (one person, near, plain background, bright light,
+gestures fist, open palm, thumb up, thumb down) plus the first recording tests of u01 (open palm only).
+CORRECTION (same day): the user ids u01 and u99 are both the hand of the SAME person, recorded in
+different sessions. Wherever this file says "other person", "second person" or "cross-user", read
+"another recording session of the same hand". Nothing here says how the system treats other people.
+
+Reproduce with:  .venv\Scripts\python.exe train_static.py     (scikit-learn 1.7.2, SVM with RBF kernel, standardised inputs)
+
+What the run showed
+1) Clip-level cross-validation inside u99 (929 stable frames, 23 clips, frames of a clip never split): 100 % for every
+   class. 2) The same with smoothed or raw landmarks and with or without z: 100 % each time, so this test cannot
+   choose between those options (ceiling effect). 3) Trained on all of u99, the stable open-palm frames of u01 were
+   labelled open_palm 83 times and thumb_up 23 times (78 % correct).
+
+Why the 23 frames were wrong (diagnosis, same day)
+  Hand tilt = angle of the line wrist to middle-finger base from straight up in the picture.
+  u01 open_palm clips (stable frames, predicted as):
+    clip 1: tilt +7 deg,  24 frames -> open_palm 24
+    clip 2: tilt +40 deg, 27 frames -> open_palm 24, thumb_up 3
+    clip 3: tilt +68 deg,  6 frames -> thumb_up 6
+    clip 4: tilt +17 deg, 15 frames -> open_palm 15
+    clip 5: tilt +61 deg, 14 frames -> thumb_up 14
+    clip 6: tilt +13 deg, 20 frames -> open_palm 20
+  u99 mean tilt per gesture: open_palm +7 deg (clips +4..+10), fist +8 (+4..+12), thumb_up +57 (+53..+61),
+  thumb_down +98 (+89..+106).
+  In the training data the tilt is tied to the class: only thumb up is tilted. The model learned orientation, not
+  only the finger configuration. Test: rotating the u01 frames in the picture plane to a tilt of 7 deg made
+  100 % of them open_palm in every clip (as recorded: 78 %). Limits: 6 clips of one other person, and rotation in
+  the picture plane only (turning the hand towards or away from the camera was not looked at).
+
+Consequences (see TEAM_BRIEF_methodology.md, A.9 and D.5): record every gesture with different hand orientations;
+add features that do not depend on rotation (distances between landmarks, joint angles) for the finger
+configuration and keep the orientation only where it carries meaning (thumb up versus thumb down); or rotate
+training frames randomly for the gestures where orientation does not matter.
+
+Output of train_static.py:
+Data: 1035 stable frames from users ['u01', 'u99']
+
+1) Clip-level cross-validation inside user u99: 929 frames, 23 clips, classes ['fist', 'open_palm', 'thumb_down', 'thumb_up']
+   accuracy 100.0% (frames of a clip never in both training and test)
+true / predicted          fist   open_palm  thumb_down    thumb_up   recall
+fist                       202           0           0           0   100.0%
+open_palm                    0         283           0           0   100.0%
+thumb_down                   0           0         201           0   100.0%
+thumb_up                     0           0           0         243   100.0%
+
+2) Same test with other feature choices (still one person, exploratory):
+   features                            accuracy
+   smoothed, x y z                       100.0%
+   smoothed, x y only                    100.0%
+   raw, x y z                            100.0%
+   raw, x y only                         100.0%
+
+3) Train on all u99 frames, then label the frames of ['u01'] (only gestures they have):
+   u01 open_palm: 106 frames -> open_palm 83, thumb_up 23  (correct 78%)
+   This is recall for one gesture of one other person; it says nothing about wrong detections.
+

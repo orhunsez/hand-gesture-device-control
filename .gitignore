@@ -3,3 +3,14 @@ __pycache__/
 .venv/
 .vscode/
 data/videos/
+# LaTeX build files
+report/*.aux
+report/*.log
+report/*.out
+report/*.toc
+report/*.bbl
+report/*.blg
+report/*.fls
+report/*.fdb_latexmk
+report/*.synctex.gz
+report/main.pdf

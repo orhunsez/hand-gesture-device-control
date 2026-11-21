@@ -1,0 +1,37 @@
+﻿# Static loader on the pilot data (dataset_loader.py), run on 2026-11-21
+
+PROVISIONAL: pilot clips of one person (u99) plus the first recording tests of u01. Not a real
+dataset. The two stability thresholds were chosen on these clips; choose them again on the
+training users.
+
+Reproduce with:  .venv\Scripts\python.exe dataset_loader.py
+
+How the thresholds were chosen (u99 static clips: fist, open palm, thumb up, thumb down; the hand held
+still; after smoothing with the 1-euro filter, f_cmin 0.5 and beta 0.02):
+
+  palm centre speed (hand sizes per second): median 0.015, p90 0.051, p95 0.079, p99 0.138, max 0.177
+  pose change per frame (hand sizes):        median 0.002, p90 0.003, p95 0.004, p99 0.006, max 0.010
+
+  thresholds used: V_MAX = 0.3 hand sizes per second, POSE_MAX = 0.02 per frame, window of 5 frames
+  (about twice the largest value seen on still clips).
+  With them 100 % of the frames of the u99 still clips are kept, and 44 % of the frames of the six
+  u01 open_palm clips, which were recorded while the hand was still being positioned (the moving
+  parts are dropped). Other threshold pairs that were looked at: speed 0.2 to 1.0, pose 0.01 to 0.05
+  (u01 share 29 % to 81 %, u99 always 100 %).
+
+Settings of the run: smoothing on, 63 features (x, y, z of 21 points), no clip skipped by the validator.
+
+Output of dataset_loader.py:
+clips used: 29, skipped because of errors: none
+frames seen: 1172, kept as stable: 1035 (88%)
+X: (1035, 63), users: ['u01', 'u99']
+
+samples per gesture and user (kept / seen frames per gesture in brackets):
+gesture         u01    u99   kept/seen
+fist              0    202   202/202
+open_palm       106    283   389/526
+thumb_down        0    201   201/201
+thumb_up          0    243   243/243
+
+static gestures with no data yet: point, no_gesture
+

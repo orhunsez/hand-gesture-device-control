@@ -42,6 +42,8 @@ import numpy as np
 from mediapipe.tasks import python as mp_python
 from mediapipe.tasks.python import vision
 
+import dataset_config as cfg
+
 USER_ID = re.compile(r"^u\d{2,}$")   # u01, u02, ... keeps one person = one folder
 MODEL_PATH = "models/hand_landmarker.task"
 DATA_DIR = Path("data")
@@ -61,13 +63,13 @@ def parse_args():
     p = argparse.ArgumentParser(description=__doc__,
                                 formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--user", help="participant id, e.g. u01")
-    p.add_argument("--gesture",
-                   help="label, e.g. open_palm, fist, swipe_left, no_gesture")
-    p.add_argument("--background", help="e.g. plain, cluttered")
-    p.add_argument("--lighting", help="e.g. bright, dim")
-    p.add_argument("--distance", help="e.g. near, far")
-    p.add_argument("--duration", type=float, default=2.0,
-                   help="clip length in seconds (default 2.0)")
+    p.add_argument("--gesture", help="one of the gestures in dataset_config.py")
+    p.add_argument("--background", help="one of the backgrounds in dataset_config.py")
+    p.add_argument("--lighting", help="one of the lightings in dataset_config.py")
+    p.add_argument("--distance", help="one of the distances in dataset_config.py")
+    p.add_argument("--duration", type=float, default=None,
+                   help="clip length in seconds (default: per gesture, see "
+                        "DURATIONS in dataset_config.py)")
     p.add_argument("--camera", type=int, default=0)
     p.add_argument("--show", action="store_true",
                    help="replay each clip automatically right after recording")
@@ -77,18 +79,34 @@ def parse_args():
 
     # Any label not given on the command line is asked interactively.
     # Press Enter to accept the value in brackets.
+    # Values must come from dataset_config.py, so a typo can never become a new class.
     defaults = {"user": "u01", "gesture": "open_palm", "background": "plain",
                 "lighting": "bright", "distance": "near"}
+    allowed = {"gesture": cfg.GESTURES, "background": cfg.BACKGROUNDS,
+               "lighting": cfg.LIGHTINGS, "distance": cfg.DISTANCES}
+
+    def valid(name, value):
+        if name == "user":
+            return bool(USER_ID.match(value))
+        return value in allowed[name]
+
+    def choices(name):
+        return "u01, u02, ..." if name == "user" else ", ".join(allowed[name])
+
     for name, default in defaults.items():
-        if getattr(args, name) is None:
+        value = getattr(args, name)
+        if value is None:
             while True:
-                answer = input(f"{name} [{default}]: ").strip() or default
-                if name != "user" or USER_ID.match(answer):
+                value = input(f"{name} ({choices(name)}) [{default}]: ").strip() or default
+                if valid(name, value):
                     break
-                print("User id must look like u01, u02, ... (letter u + digits).")
-            setattr(args, name, answer)
-    if not USER_ID.match(args.user):
-        p.error("--user must look like u01, u02, ... (letter u + digits)")
+                print(f"Invalid {name}. Choose from: {choices(name)}")
+            setattr(args, name, value)
+        elif not valid(name, value):
+            p.error(f"--{name} must be one of: {choices(name)}")
+    if args.duration is None:
+        args.duration = cfg.DURATIONS.get(args.gesture, cfg.DEFAULT_DURATION)
+    print(f"Clip length for '{args.gesture}': {args.duration:g} s")
     return args
 
 
@@ -114,7 +132,9 @@ def render_file(user, gesture, clips):
              f'  "gesture": {json.dumps(gesture)},', '  "clips": [']
     for ci, clip in enumerate(clips):
         lines.append("    {")
-        for key in ("clip", "background", "lighting", "distance", "duration"):
+        keys = ["clip", "background", "lighting", "distance", "duration"]
+        keys += [k for k in ("image_width", "image_height") if k in clip]
+        for key in keys:
             lines.append(f"      {json.dumps(key)}: {json.dumps(clip[key])},")
         lines.append('      "frames": [')
         frames = clip["frames"]
@@ -140,6 +160,9 @@ def append_clip(path, args, times, frames):
         "clip": clip_id, "background": args.background,
         "lighting": args.lighting, "distance": args.distance,
         "duration": args.duration,
+        # camera picture size, needed to measure x and y distances equally (4.3)
+        **({"image_width": args.image_width, "image_height": args.image_height}
+           if hasattr(args, "image_width") else {}),
         "frames": [
             {"t": float(t),
              "landmarks": None if np.isnan(arr[0, 0])
@@ -233,6 +256,8 @@ def main():
         ok, frame = cap.read()
         if not ok:
             continue
+        if not hasattr(args, "image_width"):
+            args.image_height, args.image_width = frame.shape[:2]
         now = time.time()
         hand = detect(frame)
 

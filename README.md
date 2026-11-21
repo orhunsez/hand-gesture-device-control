@@ -62,12 +62,19 @@ are split by person, never by frame.
 | Path | What it is |
 |---|---|
 | `main.py` | Menu for recording and viewing |
+| `dataset_config.py` | Shared label lists (gestures, backgrounds, lightings, distances). The recorder only accepts these values. Gestures: fist, open_palm, thumb_up, thumb_down, point (static); swipe_left, swipe_right (dynamic, done with the open palm); no_gesture |
 | `record_landmarks.py` | Webcam to labelled landmark clips |
 | `view_clip.py` | List, replay and print recorded clips |
+| `train_static.py` | Trains and evaluates an SVM for the static gestures (clip-level cross-validation, leave-one-user-out). The pilot numbers only check the chain; see docs/results/ |
+| `dataset_loader.py` | Builds the training table for the static gestures from the clips (validate, smooth, normalise, keep stable frames, 63 numbers per row) and splits it by user. `.venv\Scripts\python.exe dataset_loader.py` shows what would be loaded; checks: `test_dataset_loader.py` |
+| `validate_dataset.py` | Checks the recorded data before training (labels, numbering, hand found, stillness, swipe direction, duplicates) and prints statistics. Run it after every recording session: `.venv\Scripts\python.exe validate_dataset.py` |
+| `landmark_smoothing.py` | 1-euro filter for the landmark stream (live or recorded). `evaluate_smoothing.py` measures its effect and tunes it; checks: `.venv\Scripts\python.exe test_landmark_smoothing.py` |
+| `landmark_features.py` | Landmark normalisation (wrist as origin, hand size as unit, aspect-ratio correction). Checks: `.venv\Scripts\python.exe test_landmark_features.py` |
 | `models/` | MediaPipe hand model (pretrained by Google, not trained by us) |
 | `data/` | Recorded landmark data |
 | `classical_baseline/` | The first version (skin colour + contour mouse control), kept as a possible classical baseline. Has its own README. |
-| `docs/` | Report outline |
+| `docs/` | Report outline (`REPORT_OUTLINE.md`) and the measured pilot results (`results/`) |
+| `report/` | LaTeX template of the Progress and Final Report (compiled on Overleaf without errors; see its README) |
 | `TEAM_BRIEF_methodology.md` | Methodology, data format, decisions and open items |
 
 ## Team split (from Preferred Work)

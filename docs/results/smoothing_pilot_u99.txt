@@ -1,0 +1,83 @@
+﻿# Smoothing results on the pilot clips (1-euro filter, experiment E2, first look)
+
+Date of the run: 2026-11-21. These numbers are PROVISIONAL: one person (user u99), near distance,
+plain background, bright light, 20 frames per second, camera picture 640 x 480.
+Re-run on the training users before using any of this in the report.
+
+Reproduce with:
+
+    .venv\Scripts\python.exe evaluate_smoothing.py
+
+The pilot clips are local files in data/landmarks/u99/ (not a real dataset). If they are deleted,
+this file is the only record of the numbers.
+
+Data used (clip counts per file):
+
+u99/fist.json: 5 clips
+u99/open_palm.json: 7 clips
+u99/swipe_left.json: 6 clips
+u99/swipe_right.json: 6 clips
+u99/thumb_up.json: 6 clips
+
+Chosen parameters, now the defaults in landmark_smoothing.py:
+f_cmin = 0.5 Hz, beta = 0.02, d_cutoff = 1.0 Hz
+  -> jitter -83.6 %, speed noise -68.2 %, added delay 26.9 ms, swipe amplitude kept at 0.971.
+Neighbour with a little more margin: f_cmin = 1.0, beta = 0.02
+  -> jitter -75.5 %, speed noise -64.2 %, delay 24.6 ms, amplitude 0.974.
+
+Metric definitions are in the header of evaluate_smoothing.py. Reading hints:
+- Unfiltered jitter is already tiny (0.0029 hand sizes, under one pixel at this distance) and the
+  unfiltered speed noise (0.19 hand sizes per second) is small next to a swipe (about 4 hand
+  sizes per second), so the gain is real but modest at this distance.
+- The delay is the shift of the time centre of the palm-centre speed on swipe clips, an estimate,
+  not the end-to-end latency (E9).
+
+Full output of evaluate_smoothing.py:
+Still clips: 18 (fist, open palm, thumb up); swipe clips: 12 (left, right); user u99
+Without the filter: median jitter 0.0029 hand sizes, speed noise (95th percentile) 0.192 hand sizes/s
+
+f_cmin   beta | jitter -%  speed noise -%  delay ms  amplitude
+  0.5   0.000 |      87.7           73.9     134.3      0.684
+  0.5   0.002 |      87.2           73.0      78.3      0.891
+  0.5   0.005 |      86.7           72.5      54.3      0.934
+  0.5   0.010 |      85.6           71.5      38.9      0.954
+  0.5   0.020 |      83.6           68.2      26.9      0.971
+  0.5   0.050 |      79.4           63.8      15.9      0.987
+  0.5   0.100 |      74.6           60.1      10.1      0.994
+  0.5   0.300 |      62.2           49.1       4.6      0.999
+  1.0   0.000 |      77.9           66.3      89.4      0.821
+  1.0   0.002 |      77.6           65.9      60.4      0.912
+  1.0   0.005 |      77.3           65.3      45.6      0.942
+  1.0   0.010 |      76.7           65.0      34.4      0.958
+  1.0   0.020 |      75.5           64.2      24.6      0.974
+  1.0   0.050 |      72.4           61.4      14.9      0.988
+  1.0   0.100 |      68.3           58.2       9.6      0.994
+  1.0   0.300 |      58.6           48.3       4.4      0.999
+  2.0   0.000 |      64.0           56.1      50.2      0.909
+  2.0   0.002 |      63.8           56.0      41.4      0.940
+  2.0   0.005 |      63.6           55.8      34.1      0.954
+  2.0   0.010 |      63.3           55.5      27.3      0.966
+  2.0   0.020 |      62.6           55.5      20.7      0.978
+  2.0   0.050 |      61.0           53.3      13.1      0.989
+  2.0   0.100 |      58.4           50.5       8.6      0.995
+  2.0   0.300 |      51.6           43.2       4.0      0.999
+  3.0   0.000 |      54.6           49.1      35.9      0.941
+  3.0   0.002 |      54.4           49.0      31.3      0.954
+  3.0   0.005 |      54.2           48.8      27.0      0.964
+  3.0   0.010 |      54.0           48.6      22.5      0.973
+  3.0   0.020 |      53.6           48.2      17.8      0.982
+  3.0   0.050 |      52.3           47.3      11.7      0.991
+  3.0   0.100 |      50.8           45.3       7.9      0.995
+  3.0   0.300 |      45.8           41.0       3.8      0.998
+  5.0   0.000 |      42.1           38.7      22.8      0.964
+  5.0   0.002 |      42.1           38.6      21.0      0.969
+  5.0   0.005 |      42.0           38.6      19.0      0.974
+  5.0   0.010 |      41.8           38.5      16.8      0.980
+  5.0   0.020 |      41.6           38.2      13.9      0.986
+  5.0   0.050 |      40.8           37.5       9.7      0.992
+  5.0   0.100 |      39.8           36.3       6.7      0.995
+  5.0   0.300 |      36.9           33.0       3.4      0.998
+
+Choice rule: delay <= 30 ms and amplitude >= 0.97, then the largest drop in speed noise.
+Provisional choice: f_cmin = 0.5, beta = 0.02  ->  jitter -83.6 %, speed noise -68.2 %, delay 26.9 ms, amplitude 0.971
+

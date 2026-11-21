@@ -1,0 +1,72 @@
+% =====================================================================
+% CENG391 term project report: one template for both reports.
+%
+%   Progress Report (20 November 2026): keep \finalfalse   (default)
+%   Final Report    (4 January 2027):   change to \finaltrue
+%
+% Build:  latexmk -pdf main.tex        (or upload this folder to Overleaf)
+% The Progress Report PDF must be named after the group id, e.g. G11.pdf.
+% Red [TODO: ...] notes mark everything that still has to be written.
+% The sections live in sections/ so that several people can write at once.
+% See README.md in this folder.
+% =====================================================================
+\documentclass[11pt,a4paper]{article}
+
+\newif\iffinal
+\finalfalse
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage[a4paper,margin=2.5cm]{geometry}
+\usepackage{amsmath,amssymb}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{enumitem}
+\usepackage{xcolor}
+\usepackage{tikz}
+\usetikzlibrary{positioning}
+\usepackage{pgfgantt}
+\usepackage[colorlinks=true,linkcolor=black,citecolor=black,urlcolor=blue]{hyperref}
+
+% ---- things to fill in once --------------------------------------------
+\newcommand{\groupid}{G\textbf{??}}
+\newcommand{\projecttitle}{Real-Time Hand Gesture Interface}
+\newcommand{\members}{\textcolor{red}{[TODO: full names and student numbers]}}
+
+% ---- helpers ---------------------------------------------------------------
+\newcommand{\todo}[1]{\textcolor{red}{[TODO: #1]}}
+\newcommand{\vect}[1]{\mathbf{#1}}
+
+\title{\projecttitle\\[2pt]\large CENG391 Term Project --- \iffinal Final\else Progress\fi\ Report}
+\author{Group \groupid\\ \members}
+\date{\iffinal 4 January 2027\else 20 November 2026\fi}
+
+\begin{document}
+\maketitle
+
+\iffinal
+\begin{abstract}
+\todo{Single paragraph, at most about 250 words. Written last.}
+\end{abstract}
+\fi
+
+\input{sections/01_introduction}
+\input{sections/02_related_work}
+\input{sections/03_dataset}
+\input{sections/04_methodology}
+\input{sections/05_experiments}
+\iffinal
+  \input{sections/06_discussion}
+  \input{sections/07_conclusion}
+\else
+  \input{sections/09_progress_plan}
+\fi
+\input{sections/08_contributions}
+\input{sections/genai_declaration}
+
+\bibliographystyle{plain}
+\bibliography{literature}
+
+\end{document}

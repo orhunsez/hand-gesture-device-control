@@ -1,0 +1,95 @@
+\section{Experiments and Results}
+
+\subsection{Experimental Setup}
+% WRITE: hardware (computer, camera), software versions, test procedure, participants.
+\todo{setup}
+
+\subsection{Evaluation Metrics}
+% Definitions used by the scripts of the project (evaluate_smoothing.py, validate_dataset.py,
+% train_static.py). Add every metric that appears in a table of this report.
+\begin{table}[h]
+\centering
+\begin{tabular}{@{}lp{10.5cm}@{}}
+\toprule
+Metric & Definition \\
+\midrule
+Accuracy, per-class recall & Share of correct predictions, and share of the clips or frames of a gesture that are recognised.
+  Always measured per clip or per user, never per frame. \\
+Hand-found rate & Share of frames in which MediaPipe found a hand. \\
+Jitter & RMS of the landmark noise on a still hand, in hand sizes (difference between each landmark and its
+  5-frame moving average). \\
+Speed noise & 95th percentile of the palm-centre speed on a still hand, in hand sizes per second. \\
+Added delay & Shift of the time centre of the palm-centre speed between the raw and the smoothed swipe clips, in ms. \\
+False-trigger rate & Commands per minute while the user does not intend a gesture. \todo{define precisely} \\
+Latency, frames per second & Time from camera frame to decision, per stage and in total. \todo{define when measured} \\
+\bottomrule
+\end{tabular}
+\caption{Metrics.}
+\end{table}
+
+\iffinal
+\subsection{Baseline versus Learned Classifier (E1)}
+\todo{E1}
+\subsection{Effect of Temporal Smoothing (E2)}
+\todo{E2}
+\subsection{Effect of Calibration (E3)}
+\todo{E3}
+\subsection{Effect of False-Trigger Prevention (E4)}
+\todo{E4}
+\subsection{Cross-User Evaluation (E5)}
+\todo{E5}
+\subsection{Effect of Background (E6)}
+\todo{E6}
+\subsection{Effect of Lighting (E7)}
+\todo{E7}
+\subsection{Effect of Camera Distance (E8)}
+\todo{E8}
+\subsection{Runtime Performance (E9)}
+\todo{E9: frames per second and end-to-end latency}
+\subsection{Qualitative Results}
+\todo{example frames and live demonstration screenshots}
+\else
+\subsection{Planned Experiments}
+% Progress Report: the experiments are planned, not done.
+\begin{table}[h]
+\centering
+\begin{tabular}{@{}llp{7.5cm}@{}}
+\toprule
+ID & Question & Measured by \\
+\midrule
+E1 & Does a learned classifier beat simple rules? & accuracy, confusion matrix on unseen users \\
+E2 & Does smoothing help? & jitter, speed noise, added delay \\
+E3 & Does user calibration help? & accuracy with and without calibration \\
+E4 & Do the false-trigger safeguards help? & false-trigger rate \\
+E5 & Does it work for new users? & leave-one-user-out accuracy \\
+E6--E8 & Background, lighting, camera distance & accuracy and hand-found rate per condition \\
+E9 & Is it fast enough? & frames per second, latency per stage \\
+\bottomrule
+\end{tabular}
+\caption{Planned experiments (see also Section~\ref{sec:plan}).}
+\end{table}
+
+\subsection{Preliminary Results}
+% PROVISIONAL numbers: one hand (user ids u01 and u99 are the same person), near distance, plain
+% background, bright light. They come from docs/results/smoothing_pilot_u99.txt and were
+% measured with evaluate_smoothing.py. State clearly that they are pilot numbers and that the
+% experiment will be repeated with several users.
+% Do NOT report the 100 % of the first static classifier (clips of the same hand in cross-validation) as a result:
+% it only shows that the chain works. See docs/results/static_classifier_pilot_2026-11-21.txt.
+\begin{table}[h]
+\centering
+\begin{tabular}{@{}lrr@{}}
+\toprule
+ & Without filter & With 1-euro filter \\
+\midrule
+Jitter (hand sizes, median) & 0.0029 & 84\,\% lower \\
+Speed noise (hand sizes per second) & 0.19 & 68\,\% lower \\
+Added delay (ms) & 0 & 27 \\
+Swipe amplitude kept & 1 & 0.97 \\
+\bottomrule
+\end{tabular}
+\caption{Effect of the 1-euro filter ($f_{c,\min} = 0.5$\,Hz, $\beta = 0.02$) on the pilot clips of one hand
+(18 still clips, 12 swipe clips). Provisional. \todo{repeat with several users; add the far distance}}
+\end{table}
+\todo{one or two sentences of interpretation; the unfiltered jitter is already below one pixel at this distance, so the gain is modest}
+\fi

@@ -1,0 +1,147 @@
+\section{Methodology}
+
+% Progress Report (requirement 2, ``Methodology and Implementation''): this is the main section.
+% One paragraph and the needed formula per subsection, plus the implementation work completed so far
+% (subsection 4.11). Use the same terms everywhere: landmark, normalisation, segmentation, hold time,
+% cooldown, no-gesture class. TEAM_BRIEF_methodology.md (repository root) has the reasoning behind each stage.
+
+\subsection{System Overview}
+% WRITE: a short description of each stage. The pipeline runs smoothing BEFORE normalisation
+% (smoothing works on the raw landmarks), although Section 4.3 is written before 4.4.
+% Calibration is a start-up step that sets parameters of later stages, not a stage of the
+% per-frame chain. Mention where the delay is measured (experiment E9).
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[node distance=7mm and 7mm,
+  box/.style={draw, rounded corners, align=center, minimum height=9mm, font=\footnotesize}]
+  \node[box] (cam) {Camera\\frame};
+  \node[box, right=of cam] (lm) {MediaPipe\\landmarks};
+  \node[box, right=of lm] (sm) {Smoothing\\(1-euro filter)};
+  \node[box, right=of sm] (nm) {Normali-\\sation};
+  \node[box, below=of sm] (st) {Static branch\\frame class, hold};
+  \node[box, below=of nm] (dy) {Dynamic branch\\segmentation, window class};
+  \node[box, below=of st] (ft) {False-trigger\\prevention};
+  \node[box, right=of ft] (cmd) {Command\\mapping};
+  \node[box, above=of lm] (cal) {Calibration\\(start-up)};
+  \draw[->] (cam) -- (lm);
+  \draw[->] (lm) -- (sm);
+  \draw[->] (sm) -- (nm);
+  \draw[->] (nm) -- (st);
+  \draw[->] (nm) -- (dy);
+  \draw[->] (st) -- (ft);
+  \draw[->] (dy) -- (ft);
+  \draw[->] (ft) -- (cmd);
+  \draw[->, dashed] (cal) -- (nm);
+\end{tikzpicture}
+\caption{Processing pipeline. Calibration (dashed) sets the hand scale and the thresholds of later
+stages. \todo{redraw if needed; add the delay measurement points}}
+\label{fig:pipeline}
+\end{figure}
+
+\subsection{Hand Detection and Landmark Extraction}
+% WRITE: MediaPipe Hands (palm detector, then a landmark model); the output is 21 points
+% (x, y, z) per hand; settings (one hand, detection and tracking confidence); a frame without a
+% hand counts as ``no gesture''. State openly that the model is pretrained and not ours.
+\todo{4.2}
+
+\subsection{Landmark Normalisation and Features}
+% WRITE: why raw coordinates depend on position and distance, and the two steps.
+% x and y are first converted to pixel units (MediaPipe divides them by the image width and height,
+% so equal steps are different lengths on a 4:3 camera); rotation is deliberately NOT removed.
+\begin{equation}
+  \hat{\vect{q}}_i = \frac{\vect{p}_i - \vect{p}_0}{s}, \qquad
+  s = \lVert \vect{p}_9 - \vect{p}_0 \rVert , \quad i = 0, \dots, 20
+\end{equation}
+% p_0 is the wrist, p_9 the base of the middle finger, s the hand size measured in the image plane.
+\todo{4.3: explain the equation; feature vector (63 numbers) and any derived features}
+
+\subsection{Temporal Smoothing}
+% WRITE: the jitter versus lag trade-off and the 1-euro filter (Casiez et al.), applied per
+% coordinate to the raw landmarks. The filter is causal, so it works on the live stream.
+\begin{align}
+  \hat{\dot{x}}_t &= \alpha(d_c)\,\dot{x}_t + \bigl(1 - \alpha(d_c)\bigr)\,\hat{\dot{x}}_{t-1}, \\
+  f_c &= f_{c,\min} + \beta\,\lvert \hat{\dot{x}}_t \rvert, \\
+  \alpha(f) &= \frac{1}{1 + \tau / T_e}, \quad \tau = \frac{1}{2\pi f}, \\
+  \hat{x}_t &= \alpha(f_c)\,x_t + \bigl(1 - \alpha(f_c)\bigr)\,\hat{x}_{t-1},
+\end{align}
+% with T_e the time between two frames. Tuning order: beta = 0 and f_cmin against jitter on a still
+% hand, then beta against the lag in fast movements.
+% PROVISIONAL values from the pilot clips of one hand: f_cmin = 0.5 Hz, beta = 0.02, d_c = 1 Hz.
+\todo{4.4: parameter table with the final values and how they were chosen}
+
+\subsection{Gesture Segmentation}
+% WRITE: static gestures: the same class for several consecutive frames while the hand is nearly
+% still (hold). Dynamic gestures: speed of the palm centre against two thresholds with hysteresis;
+% the window runs from the onset of the outward stroke until the hand is still again.
+% Segmentation decides ``is this a gesture candidate?''; Section 4.9 decides ``should it become a
+% command?''. Do not mix the two.
+\begin{equation}
+  \vect{c}_t = \frac{1}{5}\sum_{i \in \{0, 5, 9, 13, 17\}} \vect{p}_i(t), \qquad
+  v_t = \frac{\lVert \vect{c}_t - \vect{c}_{t-1} \rVert}{s\,\Delta t}
+\end{equation}
+% The palm centre c_t is used instead of the wrist because in the pilot the wrist moved only about
+% half as far (the hand pivots at the wrist). Onset when v_t > tau_on, end when v_t < tau_off
+% (tau_on > tau_off), with a minimum duration.
+% Open palm is both a static gesture and the hand shape of the swipes: the static branch is
+% suppressed while v_t is above the threshold, needs a hold time, and is blocked for about a second
+% after a swipe cycle.
+\todo{4.5 (Progress Report: the static part exists as the stable-frame selection of the data loader; the swipe segmentation is planned)}
+
+\subsection{Static Gesture Classification}
+% WRITE: input (normalised landmarks of one frame), the rule-based baseline and the learned model
+% (SVM with RBF kernel on standardised inputs), training data (stable frames only), how results are
+% measured (per clip or per user, never per frame).
+% WARNING from the pilot: the first classifier learned the TILT of the hand, because only the thumb-up
+% clips were tilted in the training data. Say how this is handled (varied orientations in the
+% recordings, rotation-independent features, rotation augmentation).
+\todo{4.6}
+
+\subsection{Dynamic Gesture Classification}
+% WRITE: window of the out-and-back movement resampled to a fixed length, expressed relative to its
+% starting position; rule-based baseline (direction of the first stroke) versus a small learned model.
+\todo{4.7 (Progress Report: planned)}
+
+\subsection{User Calibration}
+% WRITE: what is measured at start-up (hand size, typical speed) and which parameters it adjusts
+% (scale, segmentation thresholds, confidence threshold).
+\todo{4.8 (Progress Report: planned)}
+
+\subsection{False-Trigger Prevention}
+% WRITE: confidence threshold, hold time, cooldown, the no-gesture class and, if used, an
+% activation gesture.
+\todo{4.9 (Progress Report: planned)}
+
+\subsection{Command Mapping and Device Control}
+% Commands and target device are not decided yet; say so, or leave the subsection out of the Progress Report.
+\todo{4.10}
+
+\subsection{Implementation Details}
+% FACTS: Python 3.10; MediaPipe 1.2.3 (Tasks API, HandLandmarker); OpenCV; NumPy; scikit-learn 1.7.2.
+% See README.md in the repository root for the exact steps to run the code.
+\todo{4.11: language, libraries and versions, hardware, how to run}
+
+\iffinal\else
+\subsubsection*{Implementation Progress}
+% Progress Report requirement 2: ``describe the implementation work completed so far''.
+% Keep completed work and planned work clearly apart. Update this table on the day of submission.
+\begin{table}[H]
+\centering
+\begin{tabular}{@{}lp{6.8cm}c@{}}
+\toprule
+Component & Status & Section \\
+\midrule
+Landmark extraction (MediaPipe) & implemented in the recording tool & 4.2 \\
+Recording, viewing and validation tools & done & 3 \\
+Normalisation & done and tested & 4.3 \\
+Temporal smoothing (1-euro filter) & done; parameters provisional (one hand) & 4.4 \\
+Static data loader (stable frames) & done & 4.5, 4.6 \\
+Static classifier (SVM) & first pilot on one hand; not a result yet & 4.6 \\
+Data collection & pilot clips only; several users still to record & 3 \\
+Swipe segmentation, dynamic classifier & not implemented (planned) & 4.5, 4.7 \\
+Calibration, false-trigger prevention & not implemented (planned) & 4.8, 4.9 \\
+Command mapping & postponed; target device not decided & 4.10 \\
+\bottomrule
+\end{tabular}
+\caption{Implementation status. \todo{update before submission}}
+\end{table}
+\fi

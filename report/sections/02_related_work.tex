@@ -1,0 +1,48 @@
+\section{Related Work}
+
+% Progress Report: one short paragraph for 2.1, 2.3, 2.4 and 2.5, one sentence for 2.2 (1 to 1.5 pages).
+% Each subsection must justify one choice of the methodology. Write it as an argument, not as a list.
+% Candidate works are in literature.bib; every entry there is UNVERIFIED and must be checked
+% against the original paper before it is cited.
+
+\subsection{Hand Detection and Landmark Estimation}
+% JUSTIFIES: why MediaPipe Hands.
+% COVER: classical methods (skin colour, contour, hand-crafted features) and their sensitivity to
+% lighting and background; MediaPipe Hands, a palm detector followed by a 21-landmark regression model.
+% CITE (after checking): zhang2020mediapipe
+\todo{2.1}
+
+\subsection{Gesture Datasets and Benchmarks}
+% JUSTIFIES: why we record our own data.
+% COVER: size, classes, static or dynamic content and fit for device control of public datasets;
+% none of them is recorded under controlled, labelled lighting, background and distance conditions.
+% CITE (after checking): kapitanov2022hagrid, materzynska2019jester, benitezgarcia2020ipn
+\todo{2.2 (Progress Report: one sentence)}
+
+\subsection{Static and Dynamic Gesture Recognition}
+% JUSTIFIES: why landmark-based features and small models.
+% COVER: landmark-based versus video-based recognition, classical versus learned classifiers.
+% CITE (after checking): molchanov2016online
+\todo{2.3}
+
+\subsection{Continuous Recognition and False-Trigger Prevention}
+% JUSTIFIES: why segmentation with hysteresis, a hold time and a cooldown.
+% COVER: how existing work finds the start and end of a gesture, rejects movements that are not
+% gestures, and measures false positives and latency.
+% CITE (after checking): alon2009unified, jacob1990what
+\todo{2.4}
+
+\subsection{Temporal Smoothing}
+% JUSTIFIES: why the 1-euro filter.
+% COVER: noisy landmark streams, the jitter versus lag trade-off.
+% CITE (after checking): casiez2012oneeuro
+\todo{2.5}
+
+\iffinal
+\subsection{Comparison and Positioning}
+% WRITE: a table of the cited works and one sentence on how this project differs, for example:
+% existing work mostly reports accuracy under one condition, while this project evaluates
+% robustness across users, backgrounds, lighting and distance, and measures false-trigger
+% rate and latency explicitly.
+\todo{comparison table and positioning}
+\fi

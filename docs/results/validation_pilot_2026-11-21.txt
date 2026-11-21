@@ -1,0 +1,53 @@
+﻿# Validation of the pilot data (validate_dataset.py), run on 2026-11-21
+
+State of data/landmarks at the time: u01 (6 open_palm clips from the first recording tests) and u99
+(pilot: fist, open_palm, thumb_up, swipe_left, swipe_right). Not a real dataset, one person for u99.
+The thresholds in validate_dataset.py are provisional (pilot clips of one person).
+
+Reproduce with:  .venv\Scripts\python.exe validate_dataset.py
+
+What this run showed:
+- 1 error: u99/swipe_right.json clip 5, first stroke in the wrong direction (the clip that the
+  pilot analysis had already marked as probably mis-performed). The validator found it by itself.
+- Warnings: u01 open_palm clips 2 to 5 are not still (early recording tests); u99 swipe_right
+  clips 4, 5, 6 are small (0.46, 0.45, 0.34 hand sizes); all 12 swipe clips were recorded for 2 s
+  while the setting is now 3 s (an old recorder window was still open).
+- No file in the data has thumb_down, point or no_gesture yet.
+
+Full output:
+WARNING u01/open_palm.json clip 2: hand not still: palm centre moved 0.60 hand sizes
+WARNING u01/open_palm.json clip 3: hand not still: palm centre moved 1.45 hand sizes
+WARNING u01/open_palm.json clip 4: hand not still: palm centre moved 0.58 hand sizes
+WARNING u01/open_palm.json clip 5: hand not still: palm centre moved 0.49 hand sizes
+WARNING u99/swipe_left.json clip 1: recorded for 2.0 s, the current setting for 'swipe_left' is 3.0 s
+WARNING u99/swipe_left.json clip 2: recorded for 2.0 s, the current setting for 'swipe_left' is 3.0 s
+WARNING u99/swipe_left.json clip 3: recorded for 2.0 s, the current setting for 'swipe_left' is 3.0 s
+WARNING u99/swipe_left.json clip 4: recorded for 2.0 s, the current setting for 'swipe_left' is 3.0 s
+WARNING u99/swipe_left.json clip 5: recorded for 2.0 s, the current setting for 'swipe_left' is 3.0 s
+WARNING u99/swipe_left.json clip 6: recorded for 2.0 s, the current setting for 'swipe_left' is 3.0 s
+WARNING u99/swipe_right.json clip 1: recorded for 2.0 s, the current setting for 'swipe_right' is 3.0 s
+WARNING u99/swipe_right.json clip 2: recorded for 2.0 s, the current setting for 'swipe_right' is 3.0 s
+WARNING u99/swipe_right.json clip 3: recorded for 2.0 s, the current setting for 'swipe_right' is 3.0 s
+WARNING u99/swipe_right.json clip 4: recorded for 2.0 s, the current setting for 'swipe_right' is 3.0 s
+WARNING u99/swipe_right.json clip 4: swipe too small: first stroke 0.46 hand sizes (minimum 0.5)
+WARNING u99/swipe_right.json clip 5: recorded for 2.0 s, the current setting for 'swipe_right' is 3.0 s
+WARNING u99/swipe_right.json clip 5: swipe too small: first stroke 0.45 hand sizes (minimum 0.5)
+ERROR   u99/swipe_right.json clip 5: first stroke goes the wrong way for 'swipe_right' (amplitude +0.45 hand sizes); mislabelled or badly performed
+WARNING u99/swipe_right.json clip 6: recorded for 2.0 s, the current setting for 'swipe_right' is 3.0 s
+WARNING u99/swipe_right.json clip 6: swipe too small: first stroke 0.34 hand sizes (minimum 0.5)
+
+6 files, 36 clips, 2 users: 1 errors, 19 warnings
+
+Clips per user and gesture ('-' = none):
+user          fist   open_palm    thumb_up  thumb_down       point  swipe_left swipe_right  no_gesture
+u01              -           6           -           -           -           -           -           -
+u99              5           7           6           -           -           6           6           -
+total            5          13           6           0           0           6           6           0
+Missing for u01: fist, thumb_up, thumb_down, point, swipe_left, swipe_right, no_gesture
+Missing for u99: thumb_down, point, no_gesture
+Class balance: the biggest gesture has 13 clips and the smallest 5; the classifier needs similar numbers.
+
+Clips per condition (background, lighting, distance):
+  ('plain', 'bright', 'far'): 1
+  ('plain', 'bright', 'near'): 35
+
