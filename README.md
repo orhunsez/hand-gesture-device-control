@@ -1,63 +1,76 @@
-# Gesture Mouse (CENG391)
+# Hand Gesture Device Control (CENG391)
 
-Control your mouse with your hand, using only a webcam and OpenCV.
+Real-time hand gesture interface: a webcam finds the hand, MediaPipe gives 21 hand
+landmarks, and the gestures (static poses and short swipes) are mapped to device
+commands such as media and slide control. Term project for CENG391, 2026-27 Fall.
 
-## Run it
+**Current state:** data collection works (landmark recording and viewing). The
+recognition part (smoothing, segmentation, classifiers, calibration, false-trigger
+prevention, command mapping) is not implemented yet. The gesture set and target
+device are still a proposal. For the full methodology, decisions and open items, read
+[`TEAM_BRIEF_methodology.md`](TEAM_BRIEF_methodology.md). The report outline is in
+[`docs/REPORT_OUTLINE.md`](docs/REPORT_OUTLINE.md).
+
+## Setup
+
+Python 3.10 was used and tested; other versions were not tried. From the project folder:
 
 ```
-pip install -r requirements.txt
-python main.py
+py -3.10 -m venv .venv
+.venv\Scripts\python.exe -m pip install -r requirements.txt
 ```
 
-Works on Windows, macOS and Linux with Python 3.8+ and OpenCV 4 or 5.
+Always run the scripts with `.venv\Scripts\python.exe` (plain `python` may not work on
+Windows). The hand model file `models/hand_landmarker.task` must exist. If it is
+missing, download it into `models/` from
+`https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task`.
 
-Keys: `q` quit, `p` pause. Push your real mouse into a screen corner for an emergency stop.
+Note: MediaPipe 1.2.x has no `mp.solutions.hands`; only the Tasks API (`HandLandmarker`)
+is available, so older MediaPipe tutorials will not run as written.
 
-| Gesture | Action |
+## Record and look at data
+
+```
+.venv\Scripts\python.exe main.py
+```
+
+A menu lets you record clips, list recorded clips, replay a clip, or print one frame as a
+21x3 table. Recording keys: `SPACE` starts a clip (3 second countdown, then 2 seconds of
+recording), `v` replays the last clip, `q` quits. Add `--show` to replay every clip
+automatically after saving. After pulling updated scripts, close and reopen any running
+recorder window (a running script keeps the old code).
+
+Rules for recording:
+- Use your own user id in the form `u01`, `u02`, ... and always the same one.
+- Use the agreed gesture names; do not invent new spellings.
+- Never commit raw video (`data/videos/`); faces are visible. It is in `.gitignore`.
+
+## Data layout
+
+```
+data/landmarks/<user>/<gesture>.json      e.g. data/landmarks/u01/open_palm.json
+```
+
+One folder per user, one file per gesture, numbered clips inside. Each clip stores its
+own background, lighting, distance and duration, and a list of frames
+`{"t": seconds, "landmarks": [[x, y, z] x 21]}` (`null` when no hand was found). Values
+are raw MediaPipe output: not smoothed, normalised or mirrored. Training and test sets
+are split by person, never by frame.
+
+## Files
+
+| Path | What it is |
 |---|---|
-| 1 finger | move cursor |
-| fist | click |
-| 2 fingers | scroll (move hand up/down) |
-| open hand | rest pose, does nothing |
+| `main.py` | Menu for recording and viewing |
+| `record_landmarks.py` | Webcam to labelled landmark clips |
+| `view_clip.py` | List, replay and print recorded clips |
+| `models/` | MediaPipe hand model (pretrained by Google, not trained by us) |
+| `data/` | Recorded landmark data |
+| `classical_baseline/` | The first version (skin colour + contour mouse control), kept as a possible classical baseline. Has its own README. |
+| `docs/` | Report outline |
+| `TEAM_BRIEF_methodology.md` | Methodology, data format, decisions and open items |
 
-A gesture must stay the same for `STABLE_FRAMES` frames before the mouse reacts,
-so one wrong frame never clicks. The window shows both the steady gesture and
-what the current frame looks like.
-
-## One-time setup per operating system
-
-**Windows:** nothing extra.
-
-**macOS:** the first run asks for permissions. Allow both for the app you run Python from
-(Terminal, iTerm or VS Code), then restart that app:
-- System Settings → Privacy & Security → **Camera**
-- System Settings → Privacy & Security → **Accessibility** (without this the mouse does not move)
-
-**Linux:** the mouse can only be controlled in an **X11 / Xorg** session, not Wayland.
-On the login screen pick "Ubuntu on Xorg" (or similar). You may also need
-`sudo apt install python3-tk python3-dev`.
-
-## If something goes wrong
-
-| Message | Fix |
-|---|---|
-| Could not open any camera | Close other apps using the camera (Teams, Zoom, browser). On macOS allow camera access (above). |
-| Wrong camera opens | Change `CAMERA_ID` in `config.py` to 1 or 2. |
-| OpenCV cannot open windows | `pip uninstall -y opencv-python-headless opencv-python` then `pip install opencv-python` |
-| Hand not found / face detected | Tune `SKIN_LOWER` / `SKIN_UPPER` in `config.py` while watching the "Skin mask" window. |
-
-## Files (follow the pipeline top to bottom)
-`config.py` settings → `preprocess.py` → `segmentation.py` → `features.py` → `gestures.py` → `controller.py` → `display.py` → `main.py`
-
-## TODO
-- [ ] Tune skin range in `config.py` for your own lighting
-- [ ] Add 3-finger gesture for volume (`gestures.py` + `controller.py`)
-- [ ] Add double click / swipe gesture
-- [ ] Experiment: HSV vs YCrCb, with/without histogram equalization (report section 5)
-- [ ] Measure accuracy: finger-count correct % per gesture, in several lighting conditions
-- [ ] Remove the face/arm from the mask (e.g. skip the top region or use background subtraction)
-
-## Split (from Preferred Work)
+## Team split (from Preferred Work)
 - Murathan: report sections 1, 2, 7
 - Abidin and Orhun: code, report sections 4, 5, 6
 - Berzan: data collection and test videos, report sections 2, 3, 4
