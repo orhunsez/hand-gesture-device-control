@@ -19,18 +19,78 @@ recording to prediction works. They say nothing about new users.
 import warnings
 
 import numpy as np
+from sklearn.calibration import CalibratedClassifierCV
 from sklearn.metrics import confusion_matrix
-from sklearn.model_selection import StratifiedGroupKFold
+from sklearn.model_selection import StratifiedGroupKFold, StratifiedKFold
 from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import StandardScaler
 from sklearn.svm import SVC
 
 import dataset_loader as dl
+import hand_features as hf
 
 
 def make_model(C=1.0, gamma="scale"):
     """Standardise, then an RBF SVM."""
     return make_pipeline(StandardScaler(), SVC(kernel="rbf", C=C, gamma=gamma))
+
+
+class LandmarkSVM:
+    """SVM on a chosen feature set of normalised landmarks, with a confidence for every prediction.
+
+    Same interface as rule_classifier.RuleClassifier, so experiment E1 and the live system can use either:
+        fit(Q, y, groups=None), predict(Q), predict_with_confidence(Q)    Q: normalised landmarks (N, 21, 3)
+
+    features : a name from hand_features.FEATURE_SETS ("raw63", "invariant", "invariant+orient").
+    augment  : add `copies` randomly turned versions (up to +-max_deg) of the training frames of the
+               gestures whose meaning does not depend on orientation (hand_features.augment_rotation).
+    Confidence = the largest class probability. The probabilities come from sigmoid (Platt) calibration
+    of the SVM scores on held-out parts of the training data (CalibratedClassifierCV, one SVM trained on
+    all data, ensemble=False). Pass groups (one clip id per frame) so that the held-out parts are whole
+    clips: frames of one clip are nearly identical, and splitting by frame makes the probabilities far
+    too confident. The label is the class with the largest probability, so label and confidence agree.
+    """
+
+    def __init__(self, features="invariant+orient", augment=False, copies=3, max_deg=90.0,
+                 C=1.0, gamma="scale", use_z=True, calib_splits=3, seed=0):
+        self.features, self.augment, self.copies, self.max_deg = features, augment, copies, max_deg
+        self.C, self.gamma, self.use_z = C, gamma, use_z
+        self.calib_splits, self.seed = calib_splits, seed
+
+    def _X(self, Q):
+        return hf.compute(Q, self.features, self.use_z)
+
+    def fit(self, Q, y, groups=None):
+        Q, y = np.asarray(Q, dtype=np.float64), np.asarray(y)
+        if groups is not None:
+            groups = np.asarray(groups)
+        if self.augment:
+            Q, src = hf.augment_rotation(Q, y, self.copies, self.max_deg, seed=self.seed)
+            y = y[src]
+            if groups is not None:
+                groups = groups[src]      # a turned copy stays in the clip it came from
+        if groups is not None:
+            k = min(self.calib_splits, len(set(groups.tolist())))
+            splitter = StratifiedGroupKFold(n_splits=k, shuffle=True, random_state=self.seed)
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore", UserWarning)   # few clips per class: uneven folds are expected
+                cv = list(splitter.split(Q, y, groups))
+        else:
+            cv = StratifiedKFold(n_splits=self.calib_splits, shuffle=True, random_state=self.seed)
+        self.model = CalibratedClassifierCV(make_model(self.C, self.gamma), method="sigmoid",
+                                            cv=cv, ensemble=False).fit(self._X(Q), y)
+        self.classes_ = self.model.classes_
+        return self
+
+    def predict_with_confidence(self, Q):
+        Q = np.asarray(Q, dtype=np.float64)
+        single = Q.ndim == 2
+        P = self.model.predict_proba(self._X(Q[None] if single else Q))
+        labels, conf = self.classes_[P.argmax(axis=1)], P.max(axis=1)
+        return (labels[0], float(conf[0])) if single else (labels, conf)
+
+    def predict(self, Q):
+        return self.predict_with_confidence(Q)[0]
 
 
 def clip_groups(ds):

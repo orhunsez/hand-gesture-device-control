@@ -37,6 +37,7 @@ from pathlib import Path
 import numpy as np
 
 import dataset_config as cfg
+import hand_features as hf
 import landmark_features as lf
 import landmark_smoothing as ls
 import validate_dataset as vd
@@ -108,13 +109,16 @@ def stable_frames(smoothed, times, width=None, height=None, v_max=V_MAX, pose_ma
 
 
 def load_static(root=DATA_DIR, users=None, smooth=True, keep_z=True, drop_wrist=False,
-                v_max=V_MAX, pose_max=POSE_MAX, validate=True):
+                v_max=V_MAX, pose_max=POSE_MAX, validate=True, features="raw63"):
     """Load all static clips. Returns (Dataset, stats).
 
     users      : only these user ids (default all).
     smooth     : apply the 1-euro filter before normalising.
     keep_z     : False leaves the depth column out (z is the least reliable).
     drop_wrist : True leaves the wrist out (it is always 0 after normalising).
+    features   : "raw63" (default) = the normalised coordinates, shaped by keep_z and drop_wrist;
+                 any other name from hand_features.FEATURE_SETS computes those features instead
+                 (keep_z then chooses 3D or picture-plane angles and distances; drop_wrist is ignored).
     validate   : skip clips that validate_dataset.py marks as ERROR.
     stats      : clips used, clips skipped, frames seen and kept per gesture.
     """
@@ -127,7 +131,15 @@ def load_static(root=DATA_DIR, users=None, smooth=True, keep_z=True, drop_wrist=
     stats = {"clips_used": 0, "clips_skipped": [], "frames_total": 0, "frames_kept": 0,
              "per_gesture": {}}
     parts = {name: [] for name in _FIELDS}
-    n_features = lf.flatten(np.zeros((21, 3)), drop_wrist, keep_z).shape[0]
+    if features != "raw63" and features not in hf.FEATURE_SETS:
+        raise ValueError(f"unknown feature set {features!r}")
+
+    def to_rows(q):
+        if features == "raw63":
+            return lf.flatten(q, drop_wrist, keep_z)
+        return hf.compute(q, features, use_z=keep_z)
+
+    n_features = to_rows(np.ones((1, 21, 3))).shape[1]
 
     for path in sorted(root.glob("*/*.json")):
         user, gesture = path.parent.name, path.stem
@@ -154,7 +166,7 @@ def load_static(root=DATA_DIR, users=None, smooth=True, keep_z=True, drop_wrist=
             stats["clips_used"] += 1
             if not keep.any():
                 continue
-            X = lf.flatten(lf.normalize(sm[keep], w, h), drop_wrist, keep_z)
+            X = to_rows(lf.normalize(sm[keep], w, h))
             n = len(X)
             parts["X"].append(X)
             parts["y"].append(np.full(n, gesture, dtype=object))

@@ -1,0 +1,136 @@
+# Experiment E1 on the pilot data (evaluate_static.py), run on 2026-11-22
+
+PROVISIONAL and NOT a result for the report: training user u99 (one person, near, plain background, bright
+light; fist, open palm, thumb up, thumb down), plus the open-palm clips of u01 (the SAME person's hand,
+another session). No point and no no_gesture recordings exist yet. With one person and four gestures far
+apart, test 1 is at the ceiling for almost every method; the useful parts are tests 2 and 3.
+
+UPDATE 2026-11-23: the person who recorded them confirmed that u01 open_palm clips 2, 3 and 5 were thumb-up
+poses. They were removed from data/landmarks/u01/open_palm.json and the remaining clips renumbered so the
+validator accepts the file: old 1 -> 1, old 4 -> 2, old 6 -> 3 (the other clips are unchanged byte for byte).
+The output at the end of this file is from BEFORE the removal and uses the old numbers. After the removal:
+train_static.py labels all 59 u01 frames open_palm (100 %); in test 3 of evaluate_static.py raw63 (and +rot)
+reach 100 % and the rules and all rotation-independent SVMs 95 %. The difference is 3 frames (8 to 10) at the
+start of clip 1: all four fingers are bent there (sum of joint bends about 2.8 rad), so the hand was closed
+for a moment before it opened, and the loader kept the frames because the hand was still. The rules call them
+fist, raw63 open_palm (matches the label, not the shape) and inv+orient +rot thumb_down with confidence 0.94,
+i.e. the learned model is confidently wrong on a fist that looks unlike the training fists. The loader's
+stable-frame selection checks stillness only, not that the pose is the labelled one.
+
+Reproduce with:  .venv\Scripts\python.exe evaluate_static.py
+(Python 3.13.11, numpy 2.5.5, scikit-learn 1.9.1 on this machine; the pilot of 2026-11-21 used Python 3.10 and
+scikit-learn 1.7.2. train_static.py gives the same numbers as on 2026-11-21.)
+
+Methods: rules = rule_classifier.py (finger extended/bent from joint bend angles, thumb from tip-to-index-base
+distance, thumb direction for up/down; thresholds fitted on the training frames). SVM = train_static.LandmarkSVM
+(RBF, standardised inputs, sigmoid-calibrated probabilities with clip-wise held-out parts). Feature sets from
+hand_features.py: raw63 (normalised coordinates), invariant (15 joint bends + 13 distances, unchanged by
+turning the hand in the picture), inv+orient (invariant + vertical thumb direction). "+rot" = training frames
+of fist / open palm (/ point / no gesture) added 3 times, turned by a random angle within +-90 degrees.
+
+Findings
+1. CORRECTION to static_classifier_pilot_2026-11-21.txt. u01 open_palm clips 2, 3 and 5 are not open palms:
+   in all their frames the four fingers are bent as in a fist (sum of joint bends about 3.8 rad, open palm
+   about 0.3) and the thumb is extended upwards; a drawing of the landmarks looks like u99's thumb_up clips.
+   They are almost certainly thumb-up poses recorded under the label open_palm (to be confirmed by replaying
+   the clips). The "wrong" thumb_up answers of the first classifier on these clips were therefore mostly
+   RIGHT. Every method with rotation-independent features, and the rules, call all three clips thumb_up and
+   the three real open palms open_palm (except 3 transition frames of clip 1 with bent fingers). The raw63
+   SVM scores highest against the recorded labels (78 %) only because on clip 2 (tilt 39 deg) it makes the
+   same mistake as the label. Accuracy against these labels must not be quoted.
+2. The orientation problem is nevertheless real (test 2): turning fist and open-palm test frames makes the
+   raw63 SVM collapse (93 % at +30 deg, 16 % at +60 deg, 0 % at +90 deg; the wrong answers are thumb_down and
+   open_palm), and its wrong answers come with high confidence (at threshold 0.9 only 22 % of them are held
+   back). The rules and every SVM on rotation-independent features stay at 100 % at all angles.
+3. Rotation augmentation alone does not rescue raw63: it fixes the turned frames but in test 1 it now calls
+   one thumb_down clip a fist (41 frames), because a fist turned by about 90 degrees has the coordinates of
+   a thumb down. With inv+orient the thumb distance keeps the two apart.
+4. Recommendation for 4.6, to be confirmed with more users: SVM on inv+orient with rotation augmentation as
+   the learned model, the rules as the E1 baseline. The pilot cannot separate rules from SVM (both 100 %);
+   that needs several users, point and no_gesture data, and hand orientations that vary.
+Limits: one hand; only rotation in the picture plane was simulated (not turning towards or away from the
+camera); test 2 turns recorded frames artificially, which is not the same as recording tilted hands.
+
+Output of evaluate_static.py:
+Training user u99: 929 stable frames, 23 clips, classes ['fist', 'open_palm', 'thumb_down', 'thumb_up']
+Other user ids: ['u01']
+Note: the rules can also answer point and no_gesture, which are not in this data; such answers count as wrong.
+
+1) Clip-level cross-validation inside u99 (5 folds, seed 0)
+   method                   frames    clips   (wrong = true->predicted, frames)
+   rules                    100.0%   100.0%   wrong: -
+   svm raw63                100.0%   100.0%   wrong: -
+   svm raw63 +rot            95.6%    95.7%   wrong: thumb_down->fist 41
+   svm invariant            100.0%   100.0%   wrong: -
+   svm inv+orient           100.0%   100.0%   wrong: -
+   svm inv+orient +rot      100.0%   100.0%   wrong: -
+
+2) Rotation stress test: test frames of ['fist', 'open_palm'] turned by a fixed angle (frame accuracy)
+   method                  -90 deg  -60 deg  -30 deg   +0 deg  +30 deg  +60 deg  +90 deg
+   rules                    100.0%   100.0%   100.0%   100.0%   100.0%   100.0%   100.0%
+   svm raw63                 58.4%    58.4%    91.8%   100.0%    93.0%    16.5%     0.0%
+   svm raw63 +rot           100.0%   100.0%   100.0%    95.6%   100.0%   100.0%   100.0%
+   svm invariant            100.0%   100.0%   100.0%   100.0%   100.0%   100.0%   100.0%
+   svm inv+orient           100.0%   100.0%   100.0%   100.0%   100.0%   100.0%   100.0%
+   svm inv+orient +rot      100.0%   100.0%   100.0%   100.0%   100.0%   100.0%   100.0%
+   (the 0 deg column contains all test frames, the others only the turned gestures)
+   Most frequent wrong answer per method over the turned frames:
+   rules                  0 wrong
+   svm raw63              1368 wrong: thumb_down 906, open_palm 462
+   svm raw63 +rot         0 wrong
+   svm invariant          0 wrong
+   svm inv+orient         0 wrong
+   svm inv+orient +rot    0 wrong
+
+Fitted rule thresholds (all of u99):
+   thumb measure = tip to index base (hand sizes); others = sum of 3 joint bends (rad)
+   thumb: extended if > 0.557 (step width 0.028)
+   index: extended if < 1.648 (step width 0.419)
+   middle: extended if < 1.669 (step width 0.453)
+   ring: extended if < 1.765 (step width 0.460)
+   pinky: extended if < 1.727 (step width 0.432)
+
+3) Trained on all of u99; majority label (share of frames) for every clip of ['u01']
+   fingers = what the rules see as extended (T I M R P); tilt = median, 0 = upright
+   clip                    tilt  fingers                rules              raw63          raw63+rot                inv             inv+or         inv+or+rot
+   u01 open_palm #1 (24)      7    TIMRP        open_palm 88%     open_palm 100%     open_palm 100%      open_palm 88%      open_palm 88%      open_palm 88%
+   u01 open_palm #2 (27)     39    T----        thumb_up 100%      open_palm 89%      open_palm 89%       thumb_up 89%      thumb_up 100%      thumb_up 100%
+   u01 open_palm #3 (6)      68    T----        thumb_up 100%      thumb_up 100%      thumb_up 100%      thumb_up 100%      thumb_up 100%      thumb_up 100%
+   u01 open_palm #4 (15)     17    TIMRP       open_palm 100%     open_palm 100%     open_palm 100%     open_palm 100%     open_palm 100%     open_palm 100%
+   u01 open_palm #5 (14)     59    T----        thumb_up 100%      thumb_up 100%      thumb_up 100%      thumb_up 100%      thumb_up 100%      thumb_up 100%
+   u01 open_palm #6 (20)     12    TIMRP       open_palm 100%     open_palm 100%     open_palm 100%     open_palm 100%     open_palm 100%     open_palm 100%
+   frame accuracy against the RECORDED labels of u01: rules 53%, raw63 78%, raw63+rot 78%, inv 53%, inv+or 53%, inv+or+rot 53%
+
+4) Confidence threshold: of all answers in test 2 (all angles pooled), how many are kept, and how
+   many of the kept ones are right. A good confidence keeps most right answers and few wrong ones.
+   method                 threshold    kept  right among kept  wrong held back
+   rules                        0.5  100.0%            100.0%   - (none wrong)
+                                0.6  100.0%            100.0%   - (none wrong)
+                                0.7  100.0%            100.0%   - (none wrong)
+                                0.8   83.9%            100.0%   - (none wrong)
+                                0.9   26.4%            100.0%   - (none wrong)
+   svm raw63                    0.5  100.0%             64.4%             0.0%
+                                0.6  100.0%             64.4%             0.0%
+                                0.7   97.1%             65.2%             5.3%
+                                0.8   90.5%             67.6%            17.7%
+                                0.9   87.9%             68.2%            21.5%
+   svm raw63 +rot               0.5  100.0%             98.9%             0.0%
+                                0.6  100.0%             98.9%             0.0%
+                                0.7   99.2%             98.9%             0.0%
+                                0.8   88.5%             98.8%             0.0%
+                                0.9   76.0%             98.6%             0.0%
+   svm invariant                0.5  100.0%            100.0%   - (none wrong)
+                                0.6  100.0%            100.0%   - (none wrong)
+                                0.7  100.0%            100.0%   - (none wrong)
+                                0.8   99.8%            100.0%   - (none wrong)
+                                0.9   99.8%            100.0%   - (none wrong)
+   svm inv+orient               0.5  100.0%            100.0%   - (none wrong)
+                                0.6  100.0%            100.0%   - (none wrong)
+                                0.7  100.0%            100.0%   - (none wrong)
+                                0.8  100.0%            100.0%   - (none wrong)
+                                0.9  100.0%            100.0%   - (none wrong)
+   svm inv+orient +rot          0.5  100.0%            100.0%   - (none wrong)
+                                0.6  100.0%            100.0%   - (none wrong)
+                                0.7  100.0%            100.0%   - (none wrong)
+                                0.8  100.0%            100.0%   - (none wrong)
+                                0.9  100.0%            100.0%   - (none wrong)

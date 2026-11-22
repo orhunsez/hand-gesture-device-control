@@ -114,6 +114,20 @@ with tempfile.TemporaryDirectory() as tmp:
     check("each test fold holds only its user and the training part never does",
           all(set(te.user.tolist()) == {u} and u not in set(tr.user.tolist()) for u, tr, te in folds))
 
+    # Other feature sets (hand_features.py): same rows, other columns.
+    import hand_features as hf
+    inv, _ = dl.load_static(tmp, features="invariant+orient")
+    check("feature set option keeps the same rows", len(inv) == len(ds) and np.array_equal(inv.frame, ds.frame))
+    check("feature set option gives the hand_features columns",
+          inv.X.shape[1] == len(hf.feature_names("invariant+orient"))
+          and np.allclose(inv.X, hf.compute(hf.unflatten(ds.X), "invariant+orient"), equal_nan=True))
+    try:
+        dl.load_static(tmp, features="pixels")
+        bad_name_caught = False
+    except ValueError:
+        bad_name_caught = True
+    check("an unknown feature set is refused", bad_name_caught)
+
 with tempfile.TemporaryDirectory() as empty:
     ds0, st0 = dl.load_static(empty)
     check("an empty folder gives an empty table", len(ds0) == 0 and ds0.X.shape == (0, 63))
