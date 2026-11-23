@@ -1,0 +1,115 @@
+# Experiment E4 (false-trigger prevention) on the pilot data (evaluate_triggers.py), run on 2026-11-23
+
+PROVISIONAL and NOT an E4 result: one person (u99, plus the u01 open-palm clips of the same hand), no
+no_gesture recordings, so the false-trigger rate per minute cannot be measured yet. The useful parts are the
+latency, the repeat timing, and what happens around the swipes.
+
+Reproduce with:  .venv\Scripts\python.exe evaluate_triggers.py               (SVM, the E1 recommendation)
+                 .venv\Scripts\python.exe evaluate_triggers.py --model rules
+(Python 3.13.11, numpy 2.5.5, scikit-learn 1.9.1)
+
+Setting (TEAM_BRIEF A.10, D.4 items 10 to 13; trigger_gate.py): no activation gesture; a static gesture
+presses after 3 consecutive frames (about 0.15 s) with the same label, confidence >= 0.7 and a calm hand; the
+open palm alone waits 0.5 s; while held, the command repeats every 0.2 s (first repeat 0.2 s after the press);
+holding tolerates 2 frames of another label and needs only confidence >= 0.5; fast movement ends a hold;
+after a swipe, 1 s cooldown. Frames are played one by one through live_pipeline.FrameAnalyzer (causal: only
+past frames). Static clips of u99 are analysed by a model trained without them (5 clip-level folds). The swipe
+events are a STAND-IN (oracle label, placed where the palm has stayed below tau_off for 0.2 s after exceeding
+tau_on), because the segmentation (4.5) and the dynamic classifier (4.7) are not written yet.
+
+Findings
+1. Start at once works: every static clip gives a press of its gesture (26 of 26). Median latency from the
+   first frame with a hand: 144 to 160 ms for fist / thumb up / thumb down, 592 ms for the open palm (the
+   0.5 s wait), 1153 ms for the u01 open palms (the hand was still being positioned, so it was not calm).
+2. Repeats come every 0.203 s on average (setting 0.2 s; the camera gives a frame every 48 ms).
+3. No hold broke up into two presses with the safeguards on ("extra" 0.00).
+4. One wrong press (u01 open_palm clip 1, 0.5 s): the hand was closed for about 3 frames before it opened and
+   was still, so the gate pressed thumb_down (SVM) / fist (rules). This is the price of starting after 3 frames:
+   a transition pose that is held still for 0.15 s counts. A longer N_ON would stop it and add latency.
+5. Open palm before a swipe (decision D.4 item 12, SVM): 3 of 11 swipe clips press the static open palm before
+   the movement starts; exactly the clips whose still lead-in is longest (0.75, 0.80, 0.85 s; the others 0.40 to
+   0.70 s). So with the 0.5 s wait, a palm held still for about 0.75 s or more before a swipe fired here. The rules
+   do not fire here, but for another reason: in the swipe clips the thumb is tucked in, and the rules require an
+   extended thumb for open_palm (they call it no_gesture), while the SVM calls it open_palm with confidence 1.0.
+6. Ablation on these clips: without the confirmation the swipe clips get 1.00 / 1.36 static presses per clip
+   (before / after the movement start), without the stillness check 0.36 / 0.73 (presses while the hand moves),
+   all off 1.18 / 1.91. The confidence threshold, the hysteresis and the cooldown make no difference HERE:
+   the SVM is confident on this one person, no hold flickered, and the swipe clips end (2 s) before the palm
+   could rest after the swipe, so the cooldown is never tested. Longer clips and no_gesture data are needed.
+Limits: one hand; 2-second clips; stand-in swipe events; no no_gesture clips.
+
+Output of evaluate_triggers.py (SVM):
+Model: svm, trained on u99 (['fist', 'open_palm', 'thumb_down', 'thumb_up']); thresholds: defaults (no calibration)
+Clips: 26 static, 11 swipe, 0 no_gesture
+Gate: N_ON 3 frames, open-palm wait 0.5 s, repeat every 0.2 s, conf_on 0.70, conf_hold 0.5, 2 frames tolerated, swipe cooldown 1.0 s
+Stand-in swipe events: 11 of 11 swipe clips reach tau_on 1.00
+
+gate setting                hit  wrong  extra  latency  interval   swipe clips: presses before / after the movement
+all on                     100%   0.04   0.00      161     0.203   0.27 / 0.00
+without confidence         100%   0.04   0.00      161     0.203   0.27 / 0.00
+without confirmation       100%   0.04   0.04       48     0.201   1.00 / 1.36
+without stillness          100%   0.04   0.00      112     0.203   0.36 / 0.73
+without hysteresis         100%   0.04   0.00      161     0.203   0.27 / 0.00
+without cooldown           100%   0.04   0.00      161     0.203   0.27 / 0.00
+all off                    100%   0.04   0.04        0     0.201   1.18 / 1.91
+
+All safeguards on, per user and gesture (static clips):
+   user   gesture      clips    hit  latency ms  wrong presses
+   u01    open_palm        3   100%        1153              1
+   u99    fist             5   100%         159              0
+   u99    open_palm        7   100%         592              0
+   u99    thumb_down       5   100%         160              0
+   u99    thumb_up         6   100%         144              0
+
+All safeguards on, swipe clips one by one (static presses that should not happen):
+   u99 swipe_left  #1  still lead-in 0.75 s             swipe event at 1.91 s  presses: open_palm at 0.61 s
+   u99 swipe_left  #2  still lead-in 0.64 s             swipe event at 1.75 s  presses: none
+   u99 swipe_left  #3  still lead-in 0.85 s             swipe event at 1.76 s  presses: open_palm at 0.61 s
+   u99 swipe_left  #4  still lead-in 0.40 s             swipe event at 1.60 s  presses: none
+   u99 swipe_left  #5  still lead-in 0.51 s             swipe event at 1.71 s  presses: none
+   u99 swipe_left  #6  still lead-in 0.40 s             swipe event at 1.55 s  presses: none
+   u99 swipe_right #1  still lead-in 0.45 s             swipe event at 2.00 s  presses: none
+   u99 swipe_right #2  still lead-in 0.70 s             swipe event at 1.95 s  presses: none
+   u99 swipe_right #3  still lead-in 0.80 s             swipe event at 1.49 s  presses: open_palm at 0.64 s
+   u99 swipe_right #4  still lead-in 0.51 s             swipe event at 1.10 s  presses: none
+   u99 swipe_right #6  still lead-in 0.40 s             swipe event at 1.01 s  presses: none
+
+no_gesture: no clips recorded yet, so the false-trigger rate per minute cannot be measured.
+
+Output of evaluate_triggers.py --model rules:
+Model: rules, trained on u99 (['fist', 'open_palm', 'thumb_down', 'thumb_up']); thresholds: defaults (no calibration)
+Clips: 26 static, 11 swipe, 0 no_gesture
+Gate: N_ON 3 frames, open-palm wait 0.5 s, repeat every 0.2 s, conf_on 0.70, conf_hold 0.5, 2 frames tolerated, swipe cooldown 1.0 s
+Stand-in swipe events: 11 of 11 swipe clips reach tau_on 1.00
+
+gate setting                hit  wrong  extra  latency  interval   swipe clips: presses before / after the movement
+all on                     100%   0.04   0.00      161     0.203   0.00 / 0.00
+without confidence         100%   0.04   0.00      161     0.203   0.00 / 0.00
+without confirmation       100%   0.04   0.00       48     0.201   0.00 / 0.09
+without stillness          100%   0.04   0.00      112     0.203   0.00 / 0.00
+without hysteresis         100%   0.04   0.00      161     0.203   0.00 / 0.00
+without cooldown           100%   0.04   0.00      161     0.203   0.00 / 0.00
+all off                    100%   0.04   0.04        0     0.201   0.09 / 2.18
+
+All safeguards on, per user and gesture (static clips):
+   user   gesture      clips    hit  latency ms  wrong presses
+   u01    open_palm        3   100%        1153              1
+   u99    fist             5   100%         159              0
+   u99    open_palm        7   100%         592              0
+   u99    thumb_down       5   100%         160              0
+   u99    thumb_up         6   100%         144              0
+
+All safeguards on, swipe clips one by one (static presses that should not happen):
+   u99 swipe_left  #1  still lead-in 0.75 s             swipe event at 1.91 s  presses: none
+   u99 swipe_left  #2  still lead-in 0.64 s             swipe event at 1.75 s  presses: none
+   u99 swipe_left  #3  still lead-in 0.85 s             swipe event at 1.76 s  presses: none
+   u99 swipe_left  #4  still lead-in 0.40 s             swipe event at 1.60 s  presses: none
+   u99 swipe_left  #5  still lead-in 0.51 s             swipe event at 1.71 s  presses: none
+   u99 swipe_left  #6  still lead-in 0.40 s             swipe event at 1.55 s  presses: none
+   u99 swipe_right #1  still lead-in 0.45 s             swipe event at 2.00 s  presses: none
+   u99 swipe_right #2  still lead-in 0.70 s             swipe event at 1.95 s  presses: none
+   u99 swipe_right #3  still lead-in 0.80 s             swipe event at 1.49 s  presses: none
+   u99 swipe_right #4  still lead-in 0.51 s             swipe event at 1.10 s  presses: none
+   u99 swipe_right #6  still lead-in 0.40 s             swipe event at 1.01 s  presses: none
+
+no_gesture: no clips recorded yet, so the false-trigger rate per minute cannot be measured.

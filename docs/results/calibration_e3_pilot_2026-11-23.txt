@@ -1,0 +1,73 @@
+# Experiment E3 (user calibration) on the pilot data (evaluate_calibration.py), run on 2026-11-23
+
+MECHANICS CHECK ONLY, NOT an E3 result. There is one complete person (u99; u01 is the same hand and has only
+open_palm), so no other user can serve as the population: the script falls back to "pilot mode", where the
+population is the same person (two halves of the non-calibration clips by clip number). Calibration then has
+nothing to fix, and the defaults were read off this person's clips in the first place. E3 needs at least three
+users with every gesture recorded at least twice (one clip for the calibration, the rest for the test).
+
+Reproduce with:  .venv\Scripts\python.exe evaluate_calibration.py
+                 .venv\Scripts\python.exe calibration.py --user u99 [--clip 1|2|3]   (profile only)
+(Python 3.13.11, numpy 2.5.5, scikit-learn 1.9.1)
+
+What calibration does (calibration.py, TEAM_BRIEF A.11 and D.4 item 14): clip 1 of every gesture plays the
+role of the start-up calibration. Stability thresholds from the palm speed / pose change of the held gestures
+(only raised); rule finger thresholds fitted on the steadiest second of each held gesture, mixed half and half
+with the population and kept within +-30 %; confidence thresholds only lowered (10th percentile of the right
+answers, floor 0.5); tau_on = 0.3 x the slower calibration swipe (at least 2 x v_max), tau_off = tau_on / 2;
+every value within 0.5 to 2 times its default. Every held gesture is first checked with the uncalibrated rules.
+
+Findings
+1. The chain runs end to end on real clips: all four recorded held gestures pass the check, both swipes pass,
+   point is reported as missing and keeps the defaults.
+2. All five variants (rules / SVM, with and without calibration) are at 100 % on the test clips, so pilot mode
+   shows only that calibration does not break anything here; it cannot show a benefit.
+3. Calibration clip matters: with clip 1, 2 or 3 of u99 the stability noise of one 2-second hold gives v_max
+   0.26, 0.15 and 0.24 (before the "only raise" rule), i.e. one short hold is a noisy sample. With v_max 0.15
+   some frames of the same person's still clips (fastest frame up to 0.18) would no longer count as still.
+   This is why v_max and pose_max are only raised (defaults are kept for calm users).
+4. Swipe thresholds: calibrated tau_on 1.23 (default 1.00). Both values are reached by all 9 other swipe clips
+   and by none of the 19 static test clips, so on this person both separate swipes from still hands.
+Limits: one person, near distance, plain background, bright light; no point and no no_gesture data.
+
+Output of evaluate_calibration.py:
+Users with static data: ['u01', 'u99']
+
+u01: skipped (clips per gesture {'open_palm': 3}; needs two or more gestures with at least 2 clips)
+
+=== u99: calibration = clip 1 of ['fist', 'open_palm', 'swipe_left', 'swipe_right', 'thumb_down', 'thumb_up']; test = 19 other clips of ['fist', 'open_palm', 'thumb_down', 'thumb_up']
+    PILOT MODE: the other users have no ['fist', 'thumb_down', 'thumb_up'], so the population is the same user (MECHANICS CHECK ONLY)
+    Calibration of u99:
+       fist         ok       recognised in 100% of the steady frames  [21 frames]
+       open_palm    ok       recognised in 100% of the steady frames  [21 frames]
+       thumb_up     ok       recognised in 100% of the steady frames  [21 frames]
+       thumb_down   ok       recognised in 100% of the steady frames  [21 frames]
+       point        missing  not recorded: defaults kept
+       swipe_left   ok       peak speed 7.88 hand sizes per second, first stroke 1.36 hand sizes  [40 frames]
+       swipe_right  ok       peak speed 4.10 hand sizes per second, first stroke 1.12 hand sizes  [40 frames]
+       value                      calibrated    default
+       v_max                           0.300      0.300
+       pose_max                        0.020      0.020
+       tau_on                          1.230      1.000
+       tau_off                         0.615      0.500
+       swipe_min_amplitude             0.561      0.500
+       confidence rules                0.700      0.700
+       confidence svm                  0.700      0.700
+       rule threshold thumb            0.535      0.550
+       rule threshold index            1.639      1.600
+       rule threshold middle           1.653      1.600
+       rule threshold ring             1.750      1.600
+       rule threshold pinky            1.700      1.600
+       hand size: 120 px (only used for the distance warning)
+    (calibration of the first fold; the rule thresholds start from that fold's population)
+
+    method                         frames    clips   passes  threshold
+    rules, population              100.0%   100.0%   100.0%  0.70
+    rules, calibrated              100.0%   100.0%   100.0%  0.70
+    svm, population                100.0%   100.0%   100.0%  0.70
+    svm, calibrated threshold      100.0%   100.0%   100.0%  0.70
+    svm, adapted                   100.0%   100.0%   100.0%  0.70
+    still frames in the test clips, default    (v_max 0.300, pose_max 0.020): 100.0%
+    still frames in the test clips, calibrated (v_max 0.300, pose_max 0.020): 100.0%
+    tau_on default    1.00: swipe clips reaching it 100% of 9; static clips reaching it 0% of 19
+    tau_on calibrated 1.23: swipe clips reaching it 100% of 9; static clips reaching it 0% of 19

@@ -30,7 +30,8 @@ GESTURES = {
 # open_palm. The two are told apart by motion only (brief A.12, option 1):
 #   1. speed gate: the static branch is suppressed while the wrist speed is above the
 #      segmentation threshold,
-#   2. minimum hold time before a static gesture counts (about half a second),
+#   2. minimum hold time before the static open_palm counts (about half a second; the
+#      other static gestures start at once, brief D.4 item 12),
 #   3. cooldown after a swipe, so the palm stopping at the end of a swipe does not
 #      trigger the static open_palm command.
 # Record static open_palm clips with the hand still, swipe clips with the hand moving.

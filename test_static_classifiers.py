@@ -2,7 +2,7 @@
 
     .venv\\Scripts\\python.exe test_static_classifiers.py
 
-make_hand() builds a simple 3D hand skeleton in normalised units (wrist at the origin, hand size 1,
+make_hand() (synthetic_hand.py) builds a simple 3D hand skeleton in normalised units (wrist at the origin, hand size 1,
 y down). A bent finger curls towards the camera (negative z) and back down, as in a real fist, so
 its picture-plane projection is short. This lets the rules be checked on all five gestures,
 including point, which has not been recorded yet.
@@ -12,48 +12,7 @@ import numpy as np
 import hand_features as hf
 import rule_classifier as rc
 import train_static as ts
-
-rng = np.random.default_rng(7)
-
-MCP = {"index": (-0.30, -0.95), "middle": (0.0, -1.0), "ring": (0.25, -0.95), "pinky": (0.45, -0.85)}
-BONES = {"index": (0.45, 0.28, 0.22), "middle": (0.50, 0.30, 0.24), "ring": (0.45, 0.28, 0.22),
-         "pinky": (0.36, 0.22, 0.18)}
-STRAIGHT, CURLED = (0.05, 0.05, 0.05), (1.4, 1.6, 1.0)        # joint bends in radians
-THUMB_OUT = np.array([-0.8, -0.6]) / np.linalg.norm([-0.8, -0.6])
-
-
-def make_hand(fingers="11111", thumb_up_angle=None, tilt_deg=0.0, noise=0.0):
-    """fingers: thumb, index, middle, ring, pinky as '1' extended / '0' bent.
-
-    thumb_up_angle: turn the whole hand so the extended thumb points this many degrees from straight
-    up (0 = up, 180 = down, 90 = sideways). Otherwise the hand is turned by tilt_deg.
-    """
-    P = np.zeros((21, 3))
-    for k, name in enumerate(["index", "middle", "ring", "pinky"], start=1):
-        chain = hf.CHAINS[name]
-        base = np.array([*MCP[name], 0.0])
-        P[chain[1]] = base
-        d0 = base / np.linalg.norm(base)
-        theta, pos = 0.0, base
-        for j, (bone, bend) in enumerate(zip(BONES[name], STRAIGHT if fingers[k] == "1" else CURLED)):
-            theta += bend
-            d = np.cos(theta) * d0 + np.sin(theta) * np.array([0.0, 0.0, -1.0])
-            pos = pos + bone * d
-            P[chain[j + 2]] = pos
-    P[1] = [-0.35, -0.30, 0.0]
-    P[2] = [-0.55, -0.55, 0.0]
-    if fingers[0] == "1":
-        P[3] = [*(P[2, :2] + 0.30 * THUMB_OUT), 0.0]
-        P[4] = [*(P[3, :2] + 0.25 * THUMB_OUT), 0.0]
-    else:                                           # folded over the fingers
-        P[3] = [-0.35, -0.75, -0.10]
-        P[4] = [-0.10, -0.85, -0.20]
-    P = P + rng.normal(0, noise, size=P.shape) * (np.arange(21) > 0)[:, None]
-    if thumb_up_angle is not None:
-        current = np.arctan2(THUMB_OUT[1], THUMB_OUT[0])
-        target = np.arctan2(-np.cos(np.radians(thumb_up_angle)), np.sin(np.radians(thumb_up_angle)))
-        return hf.rotate(P, target - current)
-    return hf.rotate(P, np.radians(tilt_deg))
+from synthetic_hand import SHAPES, make_hand
 
 
 def check(name, ok):
@@ -61,14 +20,6 @@ def check(name, ok):
     if not ok:
         raise SystemExit(1)
 
-
-SHAPES = {
-    "open_palm": dict(fingers="11111"),
-    "fist": dict(fingers="00000"),
-    "thumb_up": dict(fingers="10000", thumb_up_angle=0),
-    "thumb_down": dict(fingers="10000", thumb_up_angle=180),
-    "point": dict(fingers="01000"),
-}
 
 # ---------------------------------------------------------------- rules, default thresholds
 rules = rc.RuleClassifier()

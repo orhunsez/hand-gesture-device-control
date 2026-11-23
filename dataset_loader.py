@@ -81,6 +81,28 @@ def _empty(n_features):
                    distance=np.array([], dtype=object))
 
 
+def motion(smoothed, times, width=None, height=None):
+    """Palm-centre speed (hand sizes per second) and pose change (mean landmark change in hand sizes)
+    for every frame of a clip, both shape (T,).
+
+    Frame i takes the change from frame i-1; the first frame copies the second. NaN where the frame or
+    the one before it has no hand. The speed is divided by the median hand size of the clip.
+    Needs T >= 2 and at least one frame with a hand.
+    """
+    lm = np.asarray(smoothed, dtype=np.float64)
+    px = lf.to_pixel_units(lm, width, height)
+    size = np.nanmedian(lf.hand_size(lm, width, height))
+    centre = np.nanmean(px[:, PALM, :2], axis=1)
+    q = lf.normalize(lm, width, height)
+    dt = np.diff(times)
+    with np.errstate(invalid="ignore", divide="ignore"):
+        speed = np.linalg.norm(np.diff(centre, axis=0), axis=1) / dt / size
+        pose = np.nanmean(np.linalg.norm(np.diff(q, axis=0), axis=2), axis=1)
+    speed = np.concatenate([[speed[0]], speed])
+    pose = np.concatenate([[pose[0]], pose])
+    return speed, pose
+
+
 def stable_frames(smoothed, times, width=None, height=None, v_max=V_MAX, pose_max=POSE_MAX,
                   window=WINDOW):
     """Boolean mask (T,) of frames where the hand is present and calm.
@@ -92,17 +114,7 @@ def stable_frames(smoothed, times, width=None, height=None, v_max=V_MAX, pose_ma
     present = ~np.isnan(lm[:, 0, 0])
     if T < 2 or present.sum() < 2:
         return np.zeros(T, dtype=bool)
-    px = lf.to_pixel_units(lm, width, height)
-    size = np.nanmedian(lf.hand_size(lm, width, height))
-    centre = np.nanmean(px[:, PALM, :2], axis=1)
-    q = lf.normalize(lm, width, height)
-    dt = np.diff(times)
-    with np.errstate(invalid="ignore", divide="ignore"):
-        speed = np.linalg.norm(np.diff(centre, axis=0), axis=1) / dt / size
-        pose = np.nanmean(np.linalg.norm(np.diff(q, axis=0), axis=2), axis=1)
-    # one value per frame: frame i takes the change from frame i-1; the first frame copies the second
-    speed = np.concatenate([[speed[0]], speed])
-    pose = np.concatenate([[pose[0]], pose])
+    speed, pose = motion(lm, times, width, height)
     calm = ~((speed > v_max) | (pose > pose_max) | np.isnan(speed) | np.isnan(pose)) & present
     moving = (~calm).astype(int)
     return np.convolve(moving, np.ones(window, dtype=int), mode="same") == 0
@@ -180,6 +192,39 @@ def load_static(root=DATA_DIR, users=None, smooth=True, keep_z=True, drop_wrist=
     if not parts["X"]:
         return _empty(n_features), stats
     return Dataset(**{name: np.concatenate(parts[name]) for name in _FIELDS}), stats
+
+
+def load_clips(root=DATA_DIR, users=None, gestures=None, validate=True):
+    """Every recorded clip (static and dynamic) as a dict, for code that works on whole clips
+    (calibration, the frame-by-frame pipeline, experiments E3 and E4).
+
+    Keys: user, gesture, clip, file, landmarks (T, 21, 3; raw stored values, NaN = no hand), times (T,),
+    width, height (None for old clips), background, lighting, distance.
+    users / gestures: only these (default all). validate: skip clips with a validator ERROR.
+    """
+    root = Path(root)
+    bad = set()
+    if validate:
+        issues, _ = vd.validate(root)
+        bad = vd.bad_clips(issues)
+    out = []
+    for path in sorted(root.glob("*/*.json")):
+        user, gesture = path.parent.name, path.stem
+        if (users is not None and user not in users) or (gestures is not None and gesture not in gestures):
+            continue
+        data = json.loads(path.read_text(encoding="utf-8"))
+        file_name = f"{user}/{path.name}"
+        for clip in data["clips"]:
+            k = clip["clip"]
+            if (file_name, k) in bad or (file_name, None) in bad:
+                continue
+            lm, t = vd.clip_array(clip)
+            out.append({"user": user, "gesture": gesture, "clip": k, "file": file_name,
+                        "landmarks": lm, "times": t,
+                        "width": clip.get("image_width"), "height": clip.get("image_height"),
+                        "background": clip["background"], "lighting": clip["lighting"],
+                        "distance": clip["distance"]})
+    return out
 
 
 def split(ds, train, val=(), test=()):

@@ -128,6 +128,18 @@ with tempfile.TemporaryDirectory() as tmp:
         bad_name_caught = True
     check("an unknown feature set is refused", bad_name_caught)
 
+    # Whole clips (load_clips), used by calibration and the frame-by-frame experiments.
+    unchecked = dl.load_clips(tmp, validate=False)       # the made-up swipe clip does not move: validator ERROR
+    check("load_clips: static and dynamic clips, each with its landmarks and times",
+          {"swipe_left", "fist"} <= {c["gesture"] for c in unchecked}
+          and all(c["landmarks"].shape == (len(c["times"]), 21, 3) for c in unchecked))
+    all_clips = dl.load_clips(tmp)
+    skipped = {(f, k) for f, k in stats["clips_skipped"]}
+    check("load_clips: skips the same validator ERROR clips as load_static",
+          not any((c["file"], c["clip"]) in skipped for c in all_clips))
+    check("load_clips: user and gesture filters",
+          {(c["user"], c["gesture"]) for c in dl.load_clips(tmp, users=["u01"], gestures=["fist"])} == {("u01", "fist")})
+
 with tempfile.TemporaryDirectory() as empty:
     ds0, st0 = dl.load_static(empty)
     check("an empty folder gives an empty table", len(ds0) == 0 and ds0.X.shape == (0, 63))
