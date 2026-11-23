@@ -37,8 +37,14 @@ lm, t = make_clip(make_hand(**SHAPES["fist"]), n=40, missing=(10, 11, 12), jitte
 clip = analyzer.process_clip(lm, t, 640, 480)
 analyzer.reset()
 frames = [analyzer.process(lm[i] if i not in (10, 11, 12) else None, t[i], 640, 480) for i in range(len(t))]
-for key in ("label", "conf", "present", "speed", "pose", "calm", "moving"):
+for key in ("label", "conf", "present", "speed", "pose", "calm", "moving", "centre", "size", "smoothed"):
     check(f"process_clip() == process() frame by frame: {key}", same(clip[key], [f[key] for f in frames]))
+check("centre, size and smoothed are NaN in the frames without a hand",
+      np.isnan(clip["centre"][10:13]).all() and np.isnan(clip["size"][10:13]).all()
+      and np.isnan(clip["smoothed"][10:13]).all() and not np.isnan(clip["centre"][13]).any())
+c0 = lm[0][lp.PALM, :2].mean(axis=0) * [640, 480]
+check(f"centre: the palm centre in pixels (frame 0: {clip['centre'][0].round(1)}, raw {c0.round(1)})",
+      np.allclose(clip["centre"][0], c0) and 90 < np.nanmedian(clip["size"]) < 110)
 
 check("frames without a hand: no_gesture, confidence 0, not calm, not moving",
       all(clip["label"][i] == "no_gesture" and clip["conf"][i] == 0 and not clip["calm"][i]

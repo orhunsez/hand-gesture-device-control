@@ -13,6 +13,11 @@ predict_with_confidence), and two motion values of the palm centre:
     calm   hand present, speed <= v_max and pose <= pose_max (the stability check of the static branch)
     moving speed > tau_on (the swipe onset: the speed gate of A.12 rule 1)
 The thresholds come from the calibration profile, or from calibration.DEFAULTS without one.
+For the swipe segmentation (swipe_segmentation.py) every result also carries
+    centre   palm centre (mean of landmarks 0, 5, 9, 13, 17) in pixels, (x, y)
+    size     the hand size in pixels that the speed is divided by (median of the last SIZE_WINDOW frames)
+    smoothed the smoothed landmarks (21, 3) in the stored units
+all NaN in a frame without a hand.
 
 Only past frames are used (the live system cannot look ahead), unlike the stable-frame selection of
 dataset_loader.py, which looks at a window around each recorded frame. The time a gesture has to be
@@ -47,6 +52,8 @@ class _Motion:
     def reset(self):
         self.sizes.clear()
         self.prev = None          # (t, palm centre in px, normalised landmarks)
+        self.centre = np.full(2, np.nan)   # palm centre (px) and hand size (px, median of the last
+        self.size = np.nan                 # frames) of the latest frame; NaN without a hand
 
     def update(self, smoothed, t, width=None, height=None):
         if np.isnan(smoothed).any():
@@ -55,10 +62,11 @@ class _Motion:
         px = lf.to_pixel_units(smoothed, width, height)
         self.sizes.append(float(lf.hand_size(smoothed, width, height)))
         centre = px[PALM, :2].mean(axis=0)
+        size = float(np.median(self.sizes))
+        self.centre, self.size = centre, size
         q = lf.normalize(smoothed, width, height)
         speed = pose = np.nan
         if self.prev is not None and t > self.prev[0]:
-            size = float(np.median(self.sizes))
             speed = float(np.linalg.norm(centre - self.prev[1]) / (t - self.prev[0]) / size)
             pose = float(np.mean(np.linalg.norm(q - self.prev[2], axis=1)))
         self.prev = (t, centre, q)
@@ -95,7 +103,8 @@ class FrameAnalyzer:
             label, conf = "no_gesture", 0.0
         calm, moving = self._flags(present, speed, pose)
         return {"t": t, "label": label, "conf": float(conf), "present": present, "speed": speed, "pose": pose,
-                "calm": bool(calm), "moving": bool(moving)}
+                "calm": bool(calm), "moving": bool(moving),
+                "centre": self.motion.centre.copy(), "size": self.motion.size, "smoothed": sm}
 
     def process_clip(self, landmarks, times, width=None, height=None):
         """A recorded clip, (T, 21, 3) raw stored values. Returns a dict of arrays, one value per frame.
@@ -105,8 +114,10 @@ class FrameAnalyzer:
         T = len(lm)
         sm = np.stack([self.smoother.update(lm[i], times[i], width, height) for i in range(T)])
         speed, pose = np.full(T, np.nan), np.full(T, np.nan)
+        centre, size = np.full((T, 2), np.nan), np.full(T, np.nan)
         for i in range(T):
             speed[i], pose[i] = self.motion.update(sm[i], times[i], width, height)
+            centre[i], size[i] = self.motion.centre, self.motion.size
         present = ~np.isnan(sm).any(axis=(1, 2))
         labels = np.full(T, "no_gesture", dtype=object)
         conf = np.zeros(T)
@@ -115,4 +126,5 @@ class FrameAnalyzer:
             labels[present], conf[present] = lab, c
         calm, moving = self._flags(present, speed, pose)
         return {"t": np.asarray(times, dtype=np.float64), "label": labels, "conf": conf, "present": present,
-                "speed": speed, "pose": pose, "calm": calm, "moving": moving}
+                "speed": speed, "pose": pose, "calm": calm, "moving": moving,
+                "centre": centre, "size": size, "smoothed": sm}

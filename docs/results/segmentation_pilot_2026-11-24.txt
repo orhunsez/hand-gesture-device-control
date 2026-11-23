@@ -1,0 +1,198 @@
+# Swipe segmentation (report section 4.5) on the pilot data (evaluate_segmentation.py), run on 2026-11-24
+
+PROVISIONAL: one person (u99: 6 swipe_left and 5 valid swipe_right clips, 26 static clips; plus the 3 u01
+open-palm clips of the same hand), 2-second clips, no no_gesture recordings. This checks that the method works
+on real data and gives the numbers behind the module constants; it is not a segmentation result for the report.
+
+Reproduce with:  .venv\Scripts\python.exe evaluate_segmentation.py
+                 .venv\Scripts\python.exe evaluate_segmentation.py --min-amplitude 0.3
+(Python 3.10.11, numpy 2.2.6, scikit-learn 1.7.2, mediapipe 1.2.3, opencv-python 5.1.0.95: the .venv from
+requirements.txt; Python 3.13.5 with numpy 2.1.3 gave the identical output)
+
+Data used: every clip in data/landmarks (u99 and u01) without a validator ERROR, as in dataset_loader.py:
+37 clips (11 swipe, 26 static); u99 swipe_right clip 5 is left out (ERROR: first stroke goes the wrong way).
+
+Method (swipe_segmentation.py): causal, one frame at a time, on the output of live_pipeline.FrameAnalyzer
+(1-euro smoothing, palm-centre speed in hand sizes per second from past frames). A cycle starts when the speed
+rises above tau_on; the start position is the palm centre just before the movement. It ends in the first frame
+in which the hand has gone at least swipe_min_amplitude hand sizes sideways, is back within 0.4 hand sizes of
+the start (and within half of its largest excursion), and the speed is below tau_off. The label is the sign of
+the first stroke in x (x increasing first = swipe_left; the stored picture is not mirrored). Rejected: slow for
+0.6 s without return, onset to end shorter than 0.25 s or longer than 2 s, mostly vertical, hand lost for more
+than 2 frames. Thresholds: calibration.DEFAULTS (tau_on 1.0, tau_off 0.5, swipe_min_amplitude 0.5); the run
+with --min-amplitude 0.3 changes only the minimum amplitude.
+
+Findings
+1. The pause at the turning point (pilot finding, confirmed). Between the first and the last frame above
+   tau_on the speed stayed below tau_off for 0 to 2 frames in the 6 swipe_left clips and in swipe_right clips
+   1 and 2, but for 6, 7 and 8 frames (0.29, 0.34, 0.40 s) in swipe_right clips 3, 4 and 6 (the excluded
+   clip 5 also has 6). The earlier end rule "slow for 0.2 s" (A.8, evaluate_triggers.stand_in_swipe) cuts
+   exactly these 3 of the 5 valid swipe_right clips at the turning point, so their return stroke would start
+   a second cycle in the opposite direction. With "back at the start" as the end condition no clip is cut.
+2. Minimum amplitude 0.5 (DEFAULTS): 8 of 11 swipe clips give exactly one swipe with their own label, none
+   gives a wrong label or a second swipe. Missed:
+     swipe_right #4: missed: below minimum amplitude (largest excursion 0.42 hand sizes)
+     swipe_right #6: missed: below minimum amplitude (largest excursion 0.35 hand sizes)
+     swipe_right #3: unfinished at the end of the clip (see 4)
+   The minimum amplitude is a calibrated value: per-user calibration (4.8) sets it to half of the user's
+   smaller calibration swipe, within 0.25 to 1.0, so a user who swipes small can get a lower threshold.
+3. Minimum amplitude 0.3: swipe_right #4 and #6 are recovered (amplitude 0.42 and 0.35, right label), 10 of 11.
+   No extra swipe appears in any clip. This says little about false swipes, though: in the still clips no
+   cycle starts at all (their peak speed stays below tau_on, see 5), so the minimum amplitude never comes
+   into play there. Whether 0.3 lets through small incidental movements can only be measured on no_gesture
+   recordings (none yet).
+4. swipe_right #3 is a recording limit, not a segmentation error: the hand is back at the start (0.19 hand
+   sizes) in the last frame, but its speed there is 0.51, just above tau_off 0.50; the 2-second clip ends one
+   frame too early. Swipe clips are now recorded for 3 seconds (dataset_config.DURATIONS).
+5. Static clips: 0 of 26 give a swipe, at both settings. Peak palm speed in the u99 still clips 0.03 to 0.18
+   hand sizes per second (tau_on 1.0). The u01 open-palm clips (hand still being positioned) reach 0.17, 0.97
+   and 0.60: clip 2 comes within 3 % of tau_on. Had it passed, the movement (0.58 hand sizes of drift in the
+   validator) would still have to come back to its start and be at least the minimum amplitude to count.
+6. Delay from movement onset to the swipe event: median 0.92 s (0.61 to 1.30 s). This is the cost of the
+   out-and-back definition (A.12): the command can only come after the return stroke.
+7. Margins of the constants on these clips: the cycles ended 0.02 to 0.35 hand sizes from the start (tolerance
+   0.4; swipe_right #1 ended at 0.35), the vertical/horizontal extent was 0.17 to 0.86 (limit 1.0), the longest
+   pause at a turning point 0.40 s (rejection after 0.6 s), the longest cycle 1.30 s (limit 2 s).
+Limits: one hand, 11 swipes, 2-second clips (cycles can be cut by the clip end), no no_gesture data, so the
+false-swipe rate is not measured. The 0.25 s minimum duration hardly ever acts at 20 frames per second: on
+synthetic data a 0.1 s jerk already measures about 0.25 s from onset to end after smoothing
+(test_segmentation.py). All constants are PROVISIONAL and must be re-checked on the training users.
+
+Output of evaluate_segmentation.py:
+Thresholds: tau_on 1.00, tau_off 0.50 hand sizes per second, minimum amplitude 0.50 hand sizes (calibration.DEFAULTS)
+Segmenter: return within 0.4 hand sizes (and 0.5 of the excursion), reject when slow 0.6 s without return, duration 0.25 to 2.0 s, vertical/horizontal <= 1.0, at most 2 lost frames
+Clips: 37 without a validator ERROR (11 swipe, 26 static)
+
+clip                       swipes  label        onset s  end s  ampl delay s   note
+u01 open_palm #1                0  -                  -      -     -       -   no cycle started (peak speed 0.17, tau_on 1.00)
+u01 open_palm #2                0  -                  -      -     -       -   no cycle started (peak speed 0.97, tau_on 1.00)
+u01 open_palm #3                0  -                  -      -     -       -   no cycle started (peak speed 0.60, tau_on 1.00)
+u99 fist #1                     0  -                  -      -     -       -   no cycle started (peak speed 0.15, tau_on 1.00)
+u99 fist #2                     0  -                  -      -     -       -   no cycle started (peak speed 0.06, tau_on 1.00)
+u99 fist #3                     0  -                  -      -     -       -   no cycle started (peak speed 0.08, tau_on 1.00)
+u99 fist #4                     0  -                  -      -     -       -   no cycle started (peak speed 0.03, tau_on 1.00)
+u99 fist #5                     0  -                  -      -     -       -   no cycle started (peak speed 0.03, tau_on 1.00)
+u99 open_palm #1                0  -                  -      -     -       -   no cycle started (peak speed 0.09, tau_on 1.00)
+u99 open_palm #2                0  -                  -      -     -       -   no cycle started (peak speed 0.04, tau_on 1.00)
+u99 open_palm #3                0  -                  -      -     -       -   no cycle started (peak speed 0.07, tau_on 1.00)
+u99 open_palm #4                0  -                  -      -     -       -   no cycle started (peak speed 0.04, tau_on 1.00)
+u99 open_palm #5                0  -                  -      -     -       -   no cycle started (peak speed 0.03, tau_on 1.00)
+u99 open_palm #6                0  -                  -      -     -       -   no cycle started (peak speed 0.18, tau_on 1.00)
+u99 open_palm #7                0  -                  -      -     -       -   no cycle started (peak speed 0.03, tau_on 1.00)
+u99 swipe_left #1               1  swipe_left      0.80   1.66  1.28    0.87   
+u99 swipe_left #2               1  swipe_left      0.69   1.51  1.58    0.82   
+u99 swipe_left #3               1  swipe_left      0.90   1.50  1.24    0.61   
+u99 swipe_left #4               1  swipe_left      0.45   1.39  0.86    0.94   
+u99 swipe_left #5               1  swipe_left      0.56   1.50  1.06    0.94   
+u99 swipe_left #6               1  swipe_left      0.45   1.35  1.04    0.90   
+u99 swipe_right #1              1  swipe_right     0.50   1.79  1.05    1.30   
+u99 swipe_right #2              1  swipe_right     0.75   1.74  0.88    0.99   
+u99 swipe_right #3              0  -                  -      -     -       -   cycle 0.85-2.00 s dropped: unfinished at the end (speed not below tau_off) (largest excursion 1.10 hand sizes)
+u99 swipe_right #4              0  -                  -      -     -       -   missed: below minimum amplitude; cycle 0.56-2.02 s dropped: unfinished at the end (first stroke below minimum amplitude) (largest excursion 0.42 hand sizes)
+u99 swipe_right #6              0  -                  -      -     -       -   missed: below minimum amplitude; cycle 0.45-2.02 s dropped: unfinished at the end (first stroke below minimum amplitude) (largest excursion 0.35 hand sizes)
+u99 thumb_down #1               0  -                  -      -     -       -   no cycle started (peak speed 0.12, tau_on 1.00)
+u99 thumb_down #2               0  -                  -      -     -       -   no cycle started (peak speed 0.10, tau_on 1.00)
+u99 thumb_down #3               0  -                  -      -     -       -   no cycle started (peak speed 0.13, tau_on 1.00)
+u99 thumb_down #4               0  -                  -      -     -       -   no cycle started (peak speed 0.05, tau_on 1.00)
+u99 thumb_down #5               0  -                  -      -     -       -   no cycle started (peak speed 0.16, tau_on 1.00)
+u99 thumb_up #1                 0  -                  -      -     -       -   no cycle started (peak speed 0.08, tau_on 1.00)
+u99 thumb_up #2                 0  -                  -      -     -       -   no cycle started (peak speed 0.05, tau_on 1.00)
+u99 thumb_up #3                 0  -                  -      -     -       -   no cycle started (peak speed 0.06, tau_on 1.00)
+u99 thumb_up #4                 0  -                  -      -     -       -   no cycle started (peak speed 0.04, tau_on 1.00)
+u99 thumb_up #5                 0  -                  -      -     -       -   no cycle started (peak speed 0.04, tau_on 1.00)
+u99 thumb_up #6                 0  -                  -      -     -       -   no cycle started (peak speed 0.18, tau_on 1.00)
+
+Swipe clips: 8 of 11 give exactly one swipe with their own label; 3 missed, 0 wrong label or more than one swipe
+   missed: u99 swipe_right #3: unfinished at the end (speed not below tau_off)
+   missed: u99 swipe_right #4: below minimum amplitude
+   missed: u99 swipe_right #6: below minimum amplitude
+   delay from movement onset to the swipe event: median 0.92 s (range 0.61 to 1.30 s)
+   (the minimum amplitude is a calibrated value: per-user calibration (4.8) can lower it, down to 0.25)
+Static clips: 0 of 26 give a swipe
+   peak palm speed per user and gesture (hand sizes per second):
+   u01 open_palm   3 clips, peaks 0.17, 0.97, 0.60
+   u99 fist        5 clips, peaks 0.15, 0.06, 0.08, 0.03, 0.03
+   u99 open_palm   7 clips, peaks 0.09, 0.04, 0.07, 0.04, 0.03, 0.18, 0.03
+   u99 thumb_down  5 clips, peaks 0.12, 0.10, 0.13, 0.05, 0.16
+   u99 thumb_up    6 clips, peaks 0.08, 0.05, 0.06, 0.04, 0.04, 0.18
+
+Pause at the turning point (longest run below tau_off between the first and last frame above tau_on), and the earlier end rule 'slow for 0.2 s':
+   u99 swipe_left #1         0 frames (0.00 s)   'slow for 0.2 s' keeps the cycle whole
+   u99 swipe_left #2         1 frames (0.05 s)   'slow for 0.2 s' keeps the cycle whole
+   u99 swipe_left #3         0 frames (0.00 s)   'slow for 0.2 s' keeps the cycle whole
+   u99 swipe_left #4         2 frames (0.09 s)   'slow for 0.2 s' keeps the cycle whole
+   u99 swipe_left #5         1 frames (0.07 s)   'slow for 0.2 s' keeps the cycle whole
+   u99 swipe_left #6         1 frames (0.05 s)   'slow for 0.2 s' keeps the cycle whole
+   u99 swipe_right #1        1 frames (0.05 s)   'slow for 0.2 s' keeps the cycle whole
+   u99 swipe_right #2        2 frames (0.09 s)   'slow for 0.2 s' keeps the cycle whole
+   u99 swipe_right #3        6 frames (0.29 s)   'slow for 0.2 s' CUTS the cycle at the turning point
+   u99 swipe_right #4        7 frames (0.34 s)   'slow for 0.2 s' CUTS the cycle at the turning point
+   u99 swipe_right #6        8 frames (0.40 s)   'slow for 0.2 s' CUTS the cycle at the turning point
+
+Output of evaluate_segmentation.py --min-amplitude 0.3:
+Thresholds: tau_on 1.00, tau_off 0.50 hand sizes per second, minimum amplitude 0.30 hand sizes (--min-amplitude)
+Segmenter: return within 0.4 hand sizes (and 0.5 of the excursion), reject when slow 0.6 s without return, duration 0.25 to 2.0 s, vertical/horizontal <= 1.0, at most 2 lost frames
+Clips: 37 without a validator ERROR (11 swipe, 26 static)
+
+clip                       swipes  label        onset s  end s  ampl delay s   note
+u01 open_palm #1                0  -                  -      -     -       -   no cycle started (peak speed 0.17, tau_on 1.00)
+u01 open_palm #2                0  -                  -      -     -       -   no cycle started (peak speed 0.97, tau_on 1.00)
+u01 open_palm #3                0  -                  -      -     -       -   no cycle started (peak speed 0.60, tau_on 1.00)
+u99 fist #1                     0  -                  -      -     -       -   no cycle started (peak speed 0.15, tau_on 1.00)
+u99 fist #2                     0  -                  -      -     -       -   no cycle started (peak speed 0.06, tau_on 1.00)
+u99 fist #3                     0  -                  -      -     -       -   no cycle started (peak speed 0.08, tau_on 1.00)
+u99 fist #4                     0  -                  -      -     -       -   no cycle started (peak speed 0.03, tau_on 1.00)
+u99 fist #5                     0  -                  -      -     -       -   no cycle started (peak speed 0.03, tau_on 1.00)
+u99 open_palm #1                0  -                  -      -     -       -   no cycle started (peak speed 0.09, tau_on 1.00)
+u99 open_palm #2                0  -                  -      -     -       -   no cycle started (peak speed 0.04, tau_on 1.00)
+u99 open_palm #3                0  -                  -      -     -       -   no cycle started (peak speed 0.07, tau_on 1.00)
+u99 open_palm #4                0  -                  -      -     -       -   no cycle started (peak speed 0.04, tau_on 1.00)
+u99 open_palm #5                0  -                  -      -     -       -   no cycle started (peak speed 0.03, tau_on 1.00)
+u99 open_palm #6                0  -                  -      -     -       -   no cycle started (peak speed 0.18, tau_on 1.00)
+u99 open_palm #7                0  -                  -      -     -       -   no cycle started (peak speed 0.03, tau_on 1.00)
+u99 swipe_left #1               1  swipe_left      0.80   1.66  1.28    0.87   
+u99 swipe_left #2               1  swipe_left      0.69   1.51  1.58    0.82   
+u99 swipe_left #3               1  swipe_left      0.90   1.50  1.24    0.61   
+u99 swipe_left #4               1  swipe_left      0.45   1.39  0.86    0.94   
+u99 swipe_left #5               1  swipe_left      0.56   1.50  1.06    0.94   
+u99 swipe_left #6               1  swipe_left      0.45   1.35  1.04    0.90   
+u99 swipe_right #1              1  swipe_right     0.50   1.79  1.05    1.30   
+u99 swipe_right #2              1  swipe_right     0.75   1.74  0.88    0.99   
+u99 swipe_right #3              0  -                  -      -     -       -   cycle 0.85-2.00 s dropped: unfinished at the end (speed not below tau_off) (largest excursion 1.10 hand sizes)
+u99 swipe_right #4              1  swipe_right     0.56   1.60  0.42    1.04   
+u99 swipe_right #6              1  swipe_right     0.45   1.62  0.35    1.17   
+u99 thumb_down #1               0  -                  -      -     -       -   no cycle started (peak speed 0.12, tau_on 1.00)
+u99 thumb_down #2               0  -                  -      -     -       -   no cycle started (peak speed 0.10, tau_on 1.00)
+u99 thumb_down #3               0  -                  -      -     -       -   no cycle started (peak speed 0.13, tau_on 1.00)
+u99 thumb_down #4               0  -                  -      -     -       -   no cycle started (peak speed 0.05, tau_on 1.00)
+u99 thumb_down #5               0  -                  -      -     -       -   no cycle started (peak speed 0.16, tau_on 1.00)
+u99 thumb_up #1                 0  -                  -      -     -       -   no cycle started (peak speed 0.08, tau_on 1.00)
+u99 thumb_up #2                 0  -                  -      -     -       -   no cycle started (peak speed 0.05, tau_on 1.00)
+u99 thumb_up #3                 0  -                  -      -     -       -   no cycle started (peak speed 0.06, tau_on 1.00)
+u99 thumb_up #4                 0  -                  -      -     -       -   no cycle started (peak speed 0.04, tau_on 1.00)
+u99 thumb_up #5                 0  -                  -      -     -       -   no cycle started (peak speed 0.04, tau_on 1.00)
+u99 thumb_up #6                 0  -                  -      -     -       -   no cycle started (peak speed 0.18, tau_on 1.00)
+
+Swipe clips: 10 of 11 give exactly one swipe with their own label; 1 missed, 0 wrong label or more than one swipe
+   missed: u99 swipe_right #3: unfinished at the end (speed not below tau_off)
+   delay from movement onset to the swipe event: median 0.94 s (range 0.61 to 1.30 s)
+Static clips: 0 of 26 give a swipe
+   peak palm speed per user and gesture (hand sizes per second):
+   u01 open_palm   3 clips, peaks 0.17, 0.97, 0.60
+   u99 fist        5 clips, peaks 0.15, 0.06, 0.08, 0.03, 0.03
+   u99 open_palm   7 clips, peaks 0.09, 0.04, 0.07, 0.04, 0.03, 0.18, 0.03
+   u99 thumb_down  5 clips, peaks 0.12, 0.10, 0.13, 0.05, 0.16
+   u99 thumb_up    6 clips, peaks 0.08, 0.05, 0.06, 0.04, 0.04, 0.18
+
+Pause at the turning point (longest run below tau_off between the first and last frame above tau_on), and the earlier end rule 'slow for 0.2 s':
+   u99 swipe_left #1         0 frames (0.00 s)   'slow for 0.2 s' keeps the cycle whole
+   u99 swipe_left #2         1 frames (0.05 s)   'slow for 0.2 s' keeps the cycle whole
+   u99 swipe_left #3         0 frames (0.00 s)   'slow for 0.2 s' keeps the cycle whole
+   u99 swipe_left #4         2 frames (0.09 s)   'slow for 0.2 s' keeps the cycle whole
+   u99 swipe_left #5         1 frames (0.07 s)   'slow for 0.2 s' keeps the cycle whole
+   u99 swipe_left #6         1 frames (0.05 s)   'slow for 0.2 s' keeps the cycle whole
+   u99 swipe_right #1        1 frames (0.05 s)   'slow for 0.2 s' keeps the cycle whole
+   u99 swipe_right #2        2 frames (0.09 s)   'slow for 0.2 s' keeps the cycle whole
+   u99 swipe_right #3        6 frames (0.29 s)   'slow for 0.2 s' CUTS the cycle at the turning point
+   u99 swipe_right #4        7 frames (0.34 s)   'slow for 0.2 s' CUTS the cycle at the turning point
+   u99 swipe_right #6        8 frames (0.40 s)   'slow for 0.2 s' CUTS the cycle at the turning point
