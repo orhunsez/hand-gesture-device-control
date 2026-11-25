@@ -5,6 +5,8 @@
 Options given on the command line (for example --show or --user u01) are
 passed on to the recorder when you choose "Record".
 """
+import sys, pathlib  # the code lives in folders (see README): make them importable
+sys.path[:0] = [str(pathlib.Path(__file__).resolve().parent / d) for d in ('data_tools', 'processing', 'recognition', 'runtime', 'evaluation', 'tests', 'tools')]
 import sys
 
 import view_clip

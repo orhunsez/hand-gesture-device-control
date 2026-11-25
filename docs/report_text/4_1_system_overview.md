@@ -2,7 +2,7 @@
 
 All numbers are measured on the pilot clips of one hand (41 clips, 1,653 frames, plain background, bright light,
 near distance) and are provisional. Figures: `docs/figures/fig_pipeline.png` and `docs/figures/fig_stages.png`
-(made by `make_report_figures.py`). Timings are for the development machine and cover only the stages after MediaPipe.
+(made by `tools/make_report_figures.py`). Timings are for the development machine and cover only the stages after MediaPipe.
 
 ## Text
 

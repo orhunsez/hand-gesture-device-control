@@ -57,19 +57,37 @@ own background, lighting, distance and duration, and a list of frames
 are raw MediaPipe output: not smoothed, normalised or mirrored. Training and test sets
 are split by person, never by frame.
 
+## Folders
+
+The code is grouped by what it does, in the order the data flows. Run every script from the project
+folder, for example `.venv\Scripts\python.exe evaluation/evaluate_static.py`. Each script adds the code
+folders to the import path itself, so modules still import each other by their plain name.
+
+| Folder | What is in it |
+|---|---|
+| (project folder) | `main.py` (recording menu), `requirements.txt`, this README, `TEAM_BRIEF_methodology.md` |
+| `data_tools/` | Recording and data: `dataset_config`, `record_landmarks`, `view_clip`, `validate_dataset`, `dataset_loader` |
+| `processing/` | Landmark signal processing: `landmark_smoothing`, `landmark_features`, `hand_features` |
+| `recognition/` | Classifiers and personalisation: `rule_classifier`, `train_static`, `swipe_segmentation`, `calibration` |
+| `runtime/` | Live frame-by-frame system: `live_pipeline`, `trigger_gate` |
+| `evaluation/` | Experiment scripts: `evaluate_static` (E1), `evaluate_calibration` (E3), `evaluate_triggers` (E4), `evaluate_segmentation`, `evaluate_smoothing` |
+| `tests/` | `test_*.py` checks and `synthetic_hand.py` (made-up hands used only by the checks) |
+| `tools/` | Report figures: `make_report_figures`, `make_equations`, `make_swipe_figure` |
+| `data/`, `models/`, `docs/`, `report/`, `classical_baseline/` | Recorded data, MediaPipe model, results and figures, LaTeX report, first version |
+
 ## Files
 
 | Path | What it is |
 |---|---|
 | `main.py` | Menu for recording and viewing |
-| `dataset_config.py` | Shared label lists (gestures, backgrounds, lightings, distances). The recorder only accepts these values. Gestures: fist, open_palm, thumb_up, thumb_down, point (static); swipe_left, swipe_right (dynamic, done with the open palm); no_gesture |
-| `record_landmarks.py` | Webcam to labelled landmark clips |
-| `view_clip.py` | List, replay and print recorded clips |
-| `train_static.py` | Trains and evaluates an SVM for the static gestures (clip-level cross-validation, leave-one-user-out). The pilot numbers only check the chain; see docs/results/ |
-| `dataset_loader.py` | Builds the training table for the static gestures from the clips (validate, smooth, normalise, keep stable frames, 63 numbers per row) and splits it by user. `.venv\Scripts\python.exe dataset_loader.py` shows what would be loaded; checks: `test_dataset_loader.py` |
-| `validate_dataset.py` | Checks the recorded data before training (labels, numbering, hand found, stillness, swipe direction, duplicates) and prints statistics. Run it after every recording session: `.venv\Scripts\python.exe validate_dataset.py` |
-| `landmark_smoothing.py` | 1-euro filter for the landmark stream (live or recorded). `evaluate_smoothing.py` measures its effect and tunes it; checks: `.venv\Scripts\python.exe test_landmark_smoothing.py` |
-| `landmark_features.py` | Landmark normalisation (wrist as origin, hand size as unit, aspect-ratio correction). Checks: `.venv\Scripts\python.exe test_landmark_features.py` |
+| `data_tools/dataset_config.py` | Shared label lists (gestures, backgrounds, lightings, distances). The recorder only accepts these values. Gestures: fist, open_palm, thumb_up, thumb_down, point (static); swipe_left, swipe_right (dynamic, done with the open palm); no_gesture |
+| `data_tools/record_landmarks.py` | Webcam to labelled landmark clips |
+| `data_tools/view_clip.py` | List, replay and print recorded clips |
+| `recognition/train_static.py` | Trains and evaluates an SVM for the static gestures (clip-level cross-validation, leave-one-user-out). The pilot numbers only check the chain; see docs/results/ |
+| `data_tools/dataset_loader.py` | Builds the training table for the static gestures from the clips (validate, smooth, normalise, keep stable frames, 63 numbers per row) and splits it by user. `.venv\Scripts\python.exe data_tools/dataset_loader.py` shows what would be loaded; checks: `tests/test_dataset_loader.py` |
+| `data_tools/validate_dataset.py` | Checks the recorded data before training (labels, numbering, hand found, stillness, swipe direction, duplicates) and prints statistics. Run it after every recording session: `.venv\Scripts\python.exe data_tools/validate_dataset.py` |
+| `processing/landmark_smoothing.py` | 1-euro filter for the landmark stream (live or recorded). `evaluation/evaluate_smoothing.py` measures its effect and tunes it; checks: `.venv\Scripts\python.exe tests/test_landmark_smoothing.py` |
+| `processing/landmark_features.py` | Landmark normalisation (wrist as origin, hand size as unit, aspect-ratio correction). Checks: `.venv\Scripts\python.exe tests/test_landmark_features.py` |
 | `models/` | MediaPipe hand model (pretrained by Google, not trained by us) |
 | `data/` | Recorded landmark data |
 | `classical_baseline/` | The first version (skin colour + contour mouse control), kept as a possible classical baseline. Has its own README. |
